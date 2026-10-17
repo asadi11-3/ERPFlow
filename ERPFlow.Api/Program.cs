@@ -1,8 +1,13 @@
+using ERPFlow.Infrastructure;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+builder.Services.AddInfrastructure(
+    builder.Configuration.GetConnectionString("ERPFlowDb")
+        ?? throw new InvalidOperationException("Connection string 'ERPFlowDb' is not configured."));
 
 var app = builder.Build();
 
