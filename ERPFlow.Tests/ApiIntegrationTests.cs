@@ -141,6 +141,125 @@ public sealed class ApiIntegrationTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    [Fact]
+    public async Task OrderListRequiresAuthentication()
+    {
+        var response = await client.GetAsync("/api/sales-orders");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Theory]
+    [InlineData("sales@erpflow.local", 5)]
+    [InlineData("sales2@erpflow.local", 5)]
+    [InlineData("sales3@erpflow.local", 5)]
+    [InlineData("approver@erpflow.local", 15)]
+    [InlineData("admin@erpflow.local", 15)]
+    public async Task OrderListScopesItemsAndCountsToPersistedRole(string email, int expectedCount)
+    {
+        SetToken(await LoginAsync(email));
+        var result = await client.GetFromJsonAsync<SalesOrderPage>("/api/sales-orders?pageSize=100");
+        Assert.NotNull(result);
+        Assert.Equal(expectedCount, result.TotalCount);
+        Assert.Equal(expectedCount, result.Items.Count);
+        Assert.Equal(1, result.TotalPages);
+        if (expectedCount == 5)
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            var context = scope.ServiceProvider.GetRequiredService<ERPFlowDbContext>();
+            var ownerId = await context.AppUsers.Where(user => user.Email == email).Select(user => user.Id).SingleAsync();
+            Assert.All(result.Items, order => Assert.Equal(ownerId, order.CreatedByUserId));
+        }
+    }
+
+    [Fact]
+    public async Task OrderListPaginatesWithStableTimestampAndIdOrderingAndReusesOrderDto()
+    {
+        SetToken(await LoginAsync("admin@erpflow.local"));
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<ERPFlowDbContext>();
+        var tiedTimestamp = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        await context.SalesOrders.ExecuteUpdateAsync(update => update.SetProperty(order => order.CreatedAt, tiedTimestamp));
+        var expectedIds = await context.SalesOrders.OrderByDescending(order => order.CreatedAt)
+            .ThenByDescending(order => order.Id).Select(order => order.Id).ToArrayAsync();
+
+        var first = await client.GetFromJsonAsync<SalesOrderPage>("/api/sales-orders");
+        var second = await client.GetFromJsonAsync<SalesOrderPage>("/api/sales-orders?page=2");
+        Assert.NotNull(first);
+        Assert.NotNull(second);
+        Assert.Equal(1, first.Page);
+        Assert.Equal(10, first.PageSize);
+        Assert.Equal(15, first.TotalCount);
+        Assert.Equal(2, first.TotalPages);
+        Assert.Equal(5, second.Items.Count);
+        Assert.Equal(expectedIds, first.Items.Concat(second.Items).Select(order => order.Id));
+        foreach (var order in first.Items)
+        {
+            var detail = await client.GetFromJsonAsync<SalesOrderResult>($"/api/sales-orders/{order.Id}");
+            Assert.NotNull(detail);
+            Assert.Equal(detail.TotalAmount, order.TotalAmount);
+            Assert.Equal(detail.Items.Count, order.Items.Count);
+            Assert.Equal(detail.Reservations.Count, order.Reservations.Count);
+        }
+    }
+
+    [Theory]
+    [InlineData(0, 4)]
+    [InlineData(1, 5)]
+    [InlineData(2, 3)]
+    [InlineData(3, 3)]
+    public async Task OrderListFiltersStatusBeforeCountingAndPaging(int status, int expectedCount)
+    {
+        SetToken(await LoginAsync("approver@erpflow.local"));
+        var result = await client.GetFromJsonAsync<SalesOrderPage>($"/api/sales-orders?status={status}&pageSize=2");
+        Assert.NotNull(result);
+        Assert.Equal(expectedCount, result.TotalCount);
+        Assert.Equal((expectedCount + 1) / 2, result.TotalPages);
+        Assert.Equal(2, result.Items.Count);
+        Assert.All(result.Items, order => Assert.Equal((OrderStatus)status, order.Status));
+    }
+
+    [Theory]
+    [InlineData("page=0")]
+    [InlineData("page=-1")]
+    [InlineData("pageSize=0")]
+    [InlineData("pageSize=101")]
+    [InlineData("status=4")]
+    [InlineData("status=-1")]
+    [InlineData("status=Draft")]
+    [InlineData("page=abc")]
+    public async Task OrderListRejectsInvalidQueryWithProblemDetails(string query)
+    {
+        SetToken(await LoginAsync("admin@erpflow.local"));
+        var response = await client.GetAsync($"/api/sales-orders?{query}");
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task OrderListReturnsEmptyPageForUnmatchedFilterAndOutOfRangePage()
+    {
+        SetToken(await LoginAsync("admin@erpflow.local"));
+        var beyond = await client.GetFromJsonAsync<SalesOrderPage>("/api/sales-orders?page=2147483647&pageSize=100");
+        Assert.NotNull(beyond);
+        Assert.Empty(beyond.Items);
+        Assert.Equal(15, beyond.TotalCount);
+        Assert.Equal(1, beyond.TotalPages);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<ERPFlowDbContext>();
+        var hasher = new PasswordHasher<object>();
+        context.AppUsers.Add(new AppUser("New Sales", "empty@example.test", UserRole.Sales,
+            hasher.HashPassword(new object(), Password)));
+        await context.SaveChangesAsync();
+        SetToken(await LoginAsync("empty@example.test"));
+        var empty = await client.GetFromJsonAsync<SalesOrderPage>("/api/sales-orders?status=2");
+        Assert.NotNull(empty);
+        Assert.Empty(empty.Items);
+        Assert.Equal(0, empty.TotalCount);
+        Assert.Equal(0, empty.TotalPages);
+    }
+
     [Theory]
     [InlineData("sales@erpflow.local", false)]
     [InlineData("sales2@erpflow.local", false)]

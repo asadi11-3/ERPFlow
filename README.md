@@ -102,12 +102,17 @@ This sample does not implement refresh tokens, token revocation, account adminis
 | `GET` | `/api/reference/customers` | Authenticated | `200 OK` |
 | `GET` | `/api/reference/products` | Authenticated | `200 OK` |
 | `POST` | `/api/sales-orders` | Sales, Administrator | `201 Created` |
+| `GET` | `/api/sales-orders` | Authenticated; Sales sees own orders, Approver/Administrator see all | `200 OK` |
 | `GET` | `/api/sales-orders/{id}` | Authenticated; Sales ownership applies | `200 OK` |
 | `GET` | `/api/sales-orders/{id}/history` | Authenticated; Sales ownership applies | `200 OK` |
 | `POST` | `/api/sales-orders/{id}/submit` | Sales, Administrator; Sales ownership applies | `200 OK` |
 | `GET` | `/api/sales-orders/pending` | Approver, Administrator | `200 OK` |
 | `POST` | `/api/sales-orders/{id}/approve` | Approver, Administrator | `200 OK` |
 | `POST` | `/api/sales-orders/{id}/reject` | Approver, Administrator | `200 OK` |
+
+`GET /api/sales-orders?page=1&pageSize=10&status=1` lists orders with SQL-side filtering and pagination. Defaults are page `1` and pageSize `10`; page must be positive and pageSize must be `1-100`. Optional numeric status values are Draft `0`, PendingApproval `1`, Approved `2`, Rejected `3`. Invalid query values return `400` Problem Details; missing/invalid JWT returns `401`.
+
+The response is `{ items: SalesOrderResult[], page, pageSize, totalCount, totalPages }`. Items reuse the order-detail schema, including items and reservations. Counts include only visible, filtered orders. Results sort by the existing UTC `CreatedAt` field descending, then ID descending; its JSON field remains `createdAt`, not `createdAtUtc`. Empty matches return `items: []`, `totalCount: 0`, `totalPages: 0`. A page beyond the last returns an empty array while retaining the matching totals.
 
 Approval history is returned oldest first. Approver and Administrator users can read any existing order's history; Sales users can read only history for orders they created. Missing authentication returns `401`, an ownership violation returns `403`, and an unknown order returns `404`.
 
@@ -183,7 +188,7 @@ The catalog includes warehouse, packing, and safety supplies, an out-of-stock sc
 
 Seeding is Development-only and transactional. Customer email, product SKU, and user email identify reference records; deterministic namespaced GUIDs identify the 15 orders. Repeated startup skips existing orders, including ones subsequently changed by users. Existing references are reused without overwriting fields. Incompatible roles, inactive customers, insufficient stock, or inconsistent reservation totals cause affected missing scenarios to be skipped with a warning, not repaired destructively. Counts therefore describe a fresh database, not a guarantee for previously modified databases. Concurrent changes are protected by transactions, unique constraints, and rowversions; a conflict rolls back the seed transaction rather than overwriting data.
 
-Use Swagger reference endpoints for dropdown data, sign in as Approver for the pending queue, and read order detail/history by ID. There is no all-orders endpoint; see the integration guide for a read-only SQL query to discover Draft, Approved, and Rejected IDs.
+Use Swagger reference endpoints for dropdown data and `GET /api/sales-orders` to browse visible orders across all states. Sign in as Approver or Administrator to see all 15 initial demo orders, or as Sales to see only the five owned orders. Read order detail/history using returned IDs.
 
 ## 12. Configuration
 
@@ -212,9 +217,9 @@ The automated suite covers workflow/API behavior and development-seed counts, co
 
 ## 14. Scope And Trade-Offs
 
-ERPFlow is a backend portfolio MVP, not a production ERP suite. It deliberately favors explicit use-case code over generic repositories, mediator pipelines, or premature abstractions. Out of scope are a frontend, refresh-token lifecycle, user administration, pagination, observability infrastructure, deployment automation, and other ERP modules such as purchasing, invoicing, and accounting.
+ERPFlow is a backend portfolio MVP, not a production ERP suite. It deliberately favors explicit use-case code over generic repositories, mediator pipelines, or premature abstractions. Out of scope are a frontend, refresh-token lifecycle, user administration, observability infrastructure, deployment automation, and other ERP modules such as purchasing, invoicing, and accounting.
 
-Natural next steps would be permission-based authorization, refresh-token rotation, structured telemetry, pagination/filtering, containerized infrastructure, CI, and a client application.
+Natural next steps would be permission-based authorization, refresh-token rotation, structured telemetry, richer query filters, containerized infrastructure, CI, and a client application.
 
 ## 15. Further Documentation
 

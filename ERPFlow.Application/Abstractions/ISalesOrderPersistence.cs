@@ -1,9 +1,18 @@
 using ERPFlow.Domain.Entities;
+using ERPFlow.Domain.Enums;
+using ERPFlow.Application.SalesOrders;
 
 namespace ERPFlow.Application.Abstractions;
 
 public interface ISalesOrderPersistence
 {
+    Task<SalesOrderPage> ListOrdersAsync(
+        Guid? ownerId,
+        int page,
+        int pageSize,
+        OrderStatus? status,
+        CancellationToken cancellationToken = default);
+
     Task<IApplicationTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default);
 
     Task<Customer?> FindCustomerAsync(Guid customerId, CancellationToken cancellationToken = default);

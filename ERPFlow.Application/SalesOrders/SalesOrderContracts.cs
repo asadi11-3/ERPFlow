@@ -4,6 +4,13 @@ namespace ERPFlow.Application.SalesOrders;
 
 public sealed record CreateSalesOrderItem(Guid ProductId, int Quantity);
 
+public sealed record SalesOrderPage(
+    IReadOnlyList<SalesOrderResult> Items,
+    int Page,
+    int PageSize,
+    int TotalCount,
+    int TotalPages);
+
 public sealed record CreateSalesOrderCommand(
     Guid CustomerId,
     IReadOnlyCollection<CreateSalesOrderItem> Items);
@@ -43,6 +50,12 @@ public sealed record SalesOrderResult(
 
 public interface ISalesOrderWorkflow
 {
+    Task<SalesOrderPage> ListAsync(
+        int page,
+        int pageSize,
+        OrderStatus? status = null,
+        CancellationToken cancellationToken = default);
+
     Task<SalesOrderResult> CreateDraftAsync(
         CreateSalesOrderCommand command,
         CancellationToken cancellationToken = default);

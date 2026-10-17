@@ -9,6 +9,24 @@ public sealed class SalesOrderWorkflow(
     ISalesOrderPersistence persistence,
     ICurrentUser currentUser) : ISalesOrderWorkflow
 {
+    public async Task<SalesOrderPage> ListAsync(
+        int page,
+        int pageSize,
+        OrderStatus? status = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (page < 1 || pageSize is < 1 or > 100 ||
+            (status.HasValue && !Enum.IsDefined(status.Value)))
+        {
+            throw new WorkflowValidationException("Page must be positive, pageSize must be 1-100, and status must be a defined OrderStatus value.");
+        }
+
+        var actor = await GetActorAsync(cancellationToken);
+        EnsureRole(actor, UserRole.Sales, UserRole.Approver, UserRole.Administrator);
+        return await persistence.ListOrdersAsync(
+            actor.Role == UserRole.Sales ? actor.Id : null, page, pageSize, status, cancellationToken);
+    }
+
     public async Task<SalesOrderResult> CreateDraftAsync(
         CreateSalesOrderCommand command,
         CancellationToken cancellationToken = default)

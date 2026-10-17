@@ -1,6 +1,7 @@
 using System.Data;
 using ERPFlow.Application.Abstractions;
 using ERPFlow.Application.Common;
+using ERPFlow.Application.SalesOrders;
 using ERPFlow.Domain.Entities;
 using ERPFlow.Domain.Enums;
 using Microsoft.Data.SqlClient;
@@ -10,6 +11,53 @@ namespace ERPFlow.Infrastructure.Persistence;
 
 public sealed class EfSalesOrderPersistence(ERPFlowDbContext context) : ISalesOrderPersistence
 {
+    public async Task<SalesOrderPage> ListOrdersAsync(
+        Guid? ownerId,
+        int page,
+        int pageSize,
+        OrderStatus? status,
+        CancellationToken cancellationToken = default)
+    {
+        var query = context.SalesOrders.AsNoTracking();
+        if (ownerId.HasValue)
+        {
+            query = query.Where(order => order.CreatedByUserId == ownerId.Value);
+        }
+
+        if (status.HasValue)
+        {
+            query = query.Where(order => order.Status == status.Value);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var totalPages = totalCount == 0 ? 0 : (totalCount - 1) / pageSize + 1;
+        var offset = ((long)page - 1) * pageSize;
+        if (offset >= totalCount)
+        {
+            return new SalesOrderPage([], page, pageSize, totalCount, totalPages);
+        }
+
+        var items = await query
+            .OrderByDescending(order => order.CreatedAt)
+            .ThenByDescending(order => order.Id)
+            .Skip((int)offset)
+            .Take(pageSize)
+            .AsSplitQuery()
+            .Select(order => new SalesOrderResult(
+                order.Id, order.CustomerId, order.CreatedByUserId, order.Status,
+                order.CreatedAt, order.SubmittedAt, order.DecidedAt,
+                order.Items.Sum(item => item.Quantity * item.UnitPrice),
+                order.Items.Select(item => new SalesOrderItemResult(
+                    item.Id, item.ProductId, item.Quantity, item.UnitPrice,
+                    item.Quantity * item.UnitPrice)).ToList(),
+                order.Reservations.Select(reservation => new StockReservationResult(
+                    reservation.Id, reservation.ProductId, reservation.Quantity,
+                    reservation.IsReleased, reservation.CreatedAt, reservation.ReleasedAt)).ToList()))
+            .ToListAsync(cancellationToken);
+
+        return new SalesOrderPage(items, page, pageSize, totalCount, totalPages);
+    }
+
     public async Task<IApplicationTransaction> BeginTransactionAsync(
         CancellationToken cancellationToken = default)
     {

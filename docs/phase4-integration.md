@@ -91,7 +91,7 @@ Startup runs dependent inserts in a transaction. Existing deterministic order ID
 
 To verify through Swagger, authenticate as Approver or Administrator, call `GET /api/sales-orders/pending` (initially 5), and use an ID with `GET /api/sales-orders/{id}` and `GET /api/sales-orders/{id}/history`. Authenticate as each Sales user to demonstrate ownership denial on another user's ID. Reference endpoints return 8 active customers and 20 products initially.
 
-There is no all-orders API. Discover other state IDs with this read-only SQL query against your development database, then inspect them in Swagger:
+Use `GET /api/sales-orders` in Swagger to discover all visible order IDs. Alternatively, this read-only SQL query shows development records directly:
 
 ```sql
 SELECT o.Id, o.Status, u.Email AS Owner, c.Name AS Customer
@@ -316,6 +316,41 @@ $history | ConvertTo-Json -Depth 3
 
 The response schema is an array of `{ action: number, actorId: UUID, timestampUtc: UTC date-time, remarks: string | null }`. Action values are Approved `0`, Rejected `1`, and Submitted `2`. Remarks reuse the persisted comments field, which contains the submission remark, approval comments, or rejection reason.
 
+### Browse And Page Sales Orders
+
+```powershell
+$page = Invoke-RestMethod `
+    -Method Get `
+    -Uri "$baseUrl/api/sales-orders?page=1&pageSize=10&status=1" `
+    -Headers $approverHeaders
+$page.items | Format-Table id, status, createdAt, totalAmount
+$page.totalCount
+```
+
+`GET /api/sales-orders` requires JWT authentication. Sales users see only their own orders; Approver and Administrator see all. Ownership and optional status filtering apply before both counting and pagination.
+
+| Query | Default | Allowed values |
+| --- | --- | --- |
+| `page` | `1` | Positive 32-bit integer |
+| `pageSize` | `10` | Integer from `1` through `100` |
+| `status` | Omitted (all statuses) | Numeric enum: Draft `0`, PendingApproval `1`, Approved `2`, Rejected `3` |
+
+Invalid query values return `400 application/problem+json`; missing or invalid authentication returns `401`. Results sort by the persisted UTC `CreatedAt` descending, then ID descending. The reused order DTO still calls the JSON timestamp `createdAt`, not `createdAtUtc`.
+
+The response has `items` (the same `SalesOrderResult` objects as order detail), `page`, `pageSize`, `totalCount`, and `totalPages`. Each item includes `id`, `customerId`, `createdByUserId`, `status`, `createdAt`, `submittedAt`, `decidedAt`, `totalAmount`, `items`, and `reservations`. Child shapes are unchanged from order detail. An empty result is:
+
+```json
+{
+  "items": [],
+  "page": 1,
+  "pageSize": 10,
+  "totalCount": 0,
+  "totalPages": 0
+}
+```
+
+A page beyond the last returns `items: []` with unchanged matching totals. On the initial demo dataset, the default Administrator request returns 10 of 15 orders and `totalPages: 2`; a Sales request returns five owned orders. `status=1` returns five pending orders for Approver/Administrator. There is no N+1 loading: SQL selects the page and projects only its order fields, lines, and reservations using bounded split queries. Count and page reads are separate, so totals can change between requests during concurrent writes.
+
 ## 18. Authorization Matrix
 
 | Operation | Sales | Approver | Administrator |
@@ -323,6 +358,7 @@ The response schema is an array of `{ action: number, actorId: UUID, timestampUt
 | Read reference data | Yes | Yes | Yes |
 | Create draft | Yes | No | Yes |
 | Read order by ID | Own orders | Yes | Yes |
+| List orders (including filtered totals) | Own orders | All orders | All orders |
 | Read order approval history | Own orders | Yes | Yes |
 | Submit draft | Own orders | No | Yes |
 | List pending orders | No | Yes | Yes |

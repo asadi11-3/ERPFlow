@@ -37,6 +37,14 @@ public static class ApiEndpoints
             queries.ListProductsAsync(ct));
 
         var orders = api.MapGroup("/sales-orders").WithTags("Sales Orders");
+        orders.MapGet("/", (
+                ISalesOrderWorkflow workflow,
+                CancellationToken ct,
+                int page = 1,
+                int pageSize = 10,
+                int? status = null) => workflow.ListAsync(
+                    page, pageSize, status.HasValue ? (ERPFlow.Domain.Enums.OrderStatus)status.Value : null, ct))
+            .RequireAuthorization();
         orders.MapPost("/", async (
                 CreateSalesOrderCommand command,
                 ISalesOrderWorkflow workflow,
