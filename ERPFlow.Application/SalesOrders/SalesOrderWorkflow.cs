@@ -16,6 +16,8 @@ public sealed class SalesOrderWorkflow(
         ValidateCreateCommand(command);
 
         await using var transaction = await persistence.BeginTransactionAsync(cancellationToken);
+        var actor = await GetActorAsync(cancellationToken);
+        EnsureRole(actor, UserRole.Sales, UserRole.Administrator);
         var customer = await persistence.FindCustomerAsync(command.CustomerId, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(Customer), command.CustomerId);
         if (!customer.IsActive)
@@ -28,7 +30,7 @@ public sealed class SalesOrderWorkflow(
         EnsureAllProductsFound(productIds, products);
 
         var productsById = products.ToDictionary(product => product.Id);
-        var order = new SalesOrder(customer.Id);
+        var order = new SalesOrder(customer.Id, actor.Id);
         foreach (var item in command.Items)
         {
             order.AddItem(productsById[item.ProductId], item.Quantity);
@@ -46,7 +48,9 @@ public sealed class SalesOrderWorkflow(
     {
         await using var transaction = await persistence.BeginTransactionAsync(cancellationToken);
         var order = await GetTrackedOrderAsync(orderId, cancellationToken);
-        var actorId = await GetActorIdAsync(cancellationToken);
+        var actor = await GetActorAsync(cancellationToken);
+        EnsureRole(actor, UserRole.Sales, UserRole.Administrator);
+        EnsureOwner(order, actor);
         var products = await persistence.GetProductsAsync(
             order.Items.Select(item => item.ProductId).ToArray(),
             cancellationToken);
@@ -61,7 +65,7 @@ public sealed class SalesOrderWorkflow(
         }
 
         persistence.AddApprovalHistory(
-            new ApprovalHistory(order.Id, actorId, ApprovalAction.Submitted, "Submitted for approval."));
+            new ApprovalHistory(order.Id, actor.Id, ApprovalAction.Submitted, "Submitted for approval."));
         await persistence.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return ToResult(order);
@@ -74,12 +78,13 @@ public sealed class SalesOrderWorkflow(
     {
         await using var transaction = await persistence.BeginTransactionAsync(cancellationToken);
         var order = await GetTrackedOrderAsync(orderId, cancellationToken);
-        var actorId = await GetActorIdAsync(cancellationToken);
+        var actor = await GetActorAsync(cancellationToken);
+        EnsureRole(actor, UserRole.Approver, UserRole.Administrator);
 
         ApprovalHistory history;
         try
         {
-            history = order.Approve(actorId, comments);
+            history = order.Approve(actor.Id, comments);
         }
         catch (InvalidOperationException exception)
         {
@@ -104,7 +109,8 @@ public sealed class SalesOrderWorkflow(
 
         await using var transaction = await persistence.BeginTransactionAsync(cancellationToken);
         var order = await GetTrackedOrderAsync(orderId, cancellationToken);
-        var actorId = await GetActorIdAsync(cancellationToken);
+        var actor = await GetActorAsync(cancellationToken);
+        EnsureRole(actor, UserRole.Approver, UserRole.Administrator);
         var products = await persistence.GetProductsAsync(
             order.Reservations.Select(reservation => reservation.ProductId).ToArray(),
             cancellationToken);
@@ -112,7 +118,7 @@ public sealed class SalesOrderWorkflow(
         ApprovalHistory history;
         try
         {
-            history = order.Reject(actorId, products, reason);
+            history = order.Reject(actor.Id, products, reason);
         }
         catch (InvalidOperationException exception)
         {
@@ -131,12 +137,16 @@ public sealed class SalesOrderWorkflow(
     {
         var order = await persistence.GetOrderAsync(orderId, false, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(SalesOrder), orderId);
+        var actor = await GetActorAsync(cancellationToken);
+        EnsureOwner(order, actor);
         return ToResult(order);
     }
 
     public async Task<IReadOnlyList<SalesOrderResult>> ListPendingApprovalsAsync(
         CancellationToken cancellationToken = default)
     {
+        var actor = await GetActorAsync(cancellationToken);
+        EnsureRole(actor, UserRole.Approver, UserRole.Administrator);
         var orders = await persistence.ListPendingOrdersAsync(cancellationToken);
         return orders.Select(ToResult).ToArray();
     }
@@ -152,15 +162,34 @@ public sealed class SalesOrderWorkflow(
             ?? throw new EntityNotFoundException(nameof(SalesOrder), orderId);
     }
 
-    private async Task<Guid> GetActorIdAsync(CancellationToken cancellationToken)
+    private async Task<AppUser> GetActorAsync(CancellationToken cancellationToken)
     {
         var actorId = currentUser.UserId;
-        if (actorId == Guid.Empty || !await persistence.AppUserExistsAsync(actorId, cancellationToken))
+        var actor = actorId == Guid.Empty
+            ? null
+            : await persistence.FindAppUserAsync(actorId, cancellationToken);
+        if (actor is null)
         {
             throw new EntityNotFoundException(nameof(AppUser), actorId);
         }
 
-        return actorId;
+        return actor;
+    }
+
+    private static void EnsureOwner(SalesOrder order, AppUser actor)
+    {
+        if (actor.Role == UserRole.Sales && order.CreatedByUserId != actor.Id)
+        {
+            throw new WorkflowAuthorizationException("Sales users can only access their own orders.");
+        }
+    }
+
+    private static void EnsureRole(AppUser actor, params UserRole[] allowedRoles)
+    {
+        if (!allowedRoles.Contains(actor.Role))
+        {
+            throw new WorkflowAuthorizationException("The current user is not authorized for this operation.");
+        }
     }
 
     private static void ValidateCreateCommand(CreateSalesOrderCommand command)
@@ -214,6 +243,7 @@ public sealed class SalesOrderWorkflow(
         new(
             order.Id,
             order.CustomerId,
+            order.CreatedByUserId,
             order.Status,
             order.CreatedAt,
             order.SubmittedAt,

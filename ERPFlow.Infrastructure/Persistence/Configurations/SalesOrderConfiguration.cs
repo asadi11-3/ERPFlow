@@ -27,6 +27,11 @@ public sealed class SalesOrderConfiguration : IEntityTypeConfiguration<SalesOrde
             .HasForeignKey(order => order.CustomerId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne<AppUser>()
+            .WithMany()
+            .HasForeignKey(order => order.CreatedByUserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasMany(order => order.Items)
             .WithOne()
             .HasForeignKey(item => item.SalesOrderId)
@@ -42,6 +47,7 @@ public sealed class SalesOrderConfiguration : IEntityTypeConfiguration<SalesOrde
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.HasIndex(order => new { order.CustomerId, order.CreatedAt });
+        builder.HasIndex(order => new { order.CreatedByUserId, order.CreatedAt });
         builder.HasIndex(order => order.Status);
     }
 }

@@ -5,6 +5,8 @@ public sealed class EntityNotFoundException(string entityName, Guid id)
 
 public sealed class WorkflowValidationException(string message) : Exception(message);
 
+public sealed class WorkflowAuthorizationException(string message) : Exception(message);
+
 public sealed class WorkflowConflictException(string message, Exception? innerException = null)
     : Exception(message, innerException);
 

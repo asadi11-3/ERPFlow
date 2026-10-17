@@ -122,7 +122,7 @@ public sealed class SalesOrderTests
         Assert.Throws<ArgumentOutOfRangeException>(() => order.AddItem(product, -1));
     }
 
-    private static SalesOrder CreateOrder() => new(Guid.NewGuid());
+    private static SalesOrder CreateOrder() => new(Guid.NewGuid(), Guid.NewGuid());
 
     private static Product CreateProduct(string sku = "SKU-001", int stockOnHand = 10) =>
         new("Product", sku, 25m, stockOnHand);

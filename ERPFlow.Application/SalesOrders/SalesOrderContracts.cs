@@ -26,6 +26,7 @@ public sealed record StockReservationResult(
 public sealed record SalesOrderResult(
     Guid Id,
     Guid CustomerId,
+    Guid CreatedByUserId,
     OrderStatus Status,
     DateTime CreatedAt,
     DateTime? SubmittedAt,

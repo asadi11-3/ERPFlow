@@ -19,6 +19,9 @@ public sealed class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
             .HasMaxLength(320)
             .IsRequired();
         builder.Property(user => user.Role).IsRequired();
+        builder.Property(user => user.PasswordHash)
+            .HasMaxLength(512)
+            .IsRequired();
         builder.Property(user => user.CreatedAt)
             .HasPrecision(7)
             .IsRequired();

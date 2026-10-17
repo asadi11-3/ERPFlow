@@ -6,6 +6,8 @@ using ERPFlow.Domain.Enums;
 using ERPFlow.Infrastructure.Persistence;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Xunit;
 
 namespace ERPFlow.Tests;
@@ -19,7 +21,7 @@ public sealed class SalesOrderWorkflowIntegrationTests
         await using var context = database.CreateContext();
         var customer = new Customer("Active Customer", "active@example.test");
         var product = new Product("Product", "PRODUCT-1", 42.50m, 10);
-        var user = new AppUser("Approver", "approver@example.test", UserRole.Approver);
+        var user = new AppUser("Administrator", "admin@example.test", UserRole.Administrator, "test-hash");
         context.AddRange(customer, product, user);
         await context.SaveChangesAsync();
 
@@ -61,7 +63,7 @@ public sealed class SalesOrderWorkflowIntegrationTests
         await using var context = database.CreateContext();
         var customer = new Customer("Active Customer", "active@example.test");
         var product = new Product("Product", "PRODUCT-1", 15m, 5);
-        var user = new AppUser("Approver", "approver@example.test", UserRole.Approver);
+        var user = new AppUser("Administrator", "admin@example.test", UserRole.Administrator, "test-hash");
         context.AddRange(customer, product, user);
         await context.SaveChangesAsync();
 
@@ -92,14 +94,102 @@ public sealed class SalesOrderWorkflowIntegrationTests
         var customer = new Customer("Inactive Customer", "inactive@example.test");
         customer.Deactivate();
         var product = new Product("Product", "PRODUCT-1", 10m, 5);
-        context.AddRange(customer, product);
+        var user = new AppUser("Sales", "sales@example.test", UserRole.Sales, "test-hash");
+        context.AddRange(customer, product, user);
         await context.SaveChangesAsync();
 
-        var workflow = CreateWorkflow(context, Guid.NewGuid());
+        var workflow = CreateWorkflow(context, user.Id);
 
         await Assert.ThrowsAsync<WorkflowConflictException>(() =>
             workflow.CreateDraftAsync(
                 new CreateSalesOrderCommand(customer.Id, [new CreateSalesOrderItem(product.Id, 1)])));
+    }
+
+    [Fact]
+    public async Task SalesUserCannotAccessAnotherSalesUsersOrder()
+    {
+        await using var database = await SqlServerTestDatabase.CreateAsync();
+        Guid orderId;
+        Guid secondUserId;
+
+        await using (var context = database.CreateContext())
+        {
+            var customer = new Customer("Customer", "customer@example.test");
+            var product = new Product("Product", "PRODUCT-1", 10m, 5);
+            var firstUser = new AppUser("First Sales", "first@example.test", UserRole.Sales, "test-hash");
+            var secondUser = new AppUser("Second Sales", "second@example.test", UserRole.Sales, "test-hash");
+            context.AddRange(customer, product, firstUser, secondUser);
+            await context.SaveChangesAsync();
+
+            var order = await CreateWorkflow(context, firstUser.Id).CreateDraftAsync(
+                new CreateSalesOrderCommand(customer.Id, [new CreateSalesOrderItem(product.Id, 1)]));
+            orderId = order.Id;
+            secondUserId = secondUser.Id;
+        }
+
+        await using var secondContext = database.CreateContext();
+        var workflow = CreateWorkflow(secondContext, secondUserId);
+        await Assert.ThrowsAsync<WorkflowAuthorizationException>(() => workflow.GetByIdAsync(orderId));
+        await Assert.ThrowsAsync<WorkflowAuthorizationException>(() => workflow.SubmitAsync(orderId));
+    }
+
+    [Fact]
+    public async Task ApplicationWorkflowEnforcesPersistedUserRoles()
+    {
+        await using var database = await SqlServerTestDatabase.CreateAsync();
+        await using var context = database.CreateContext();
+        var customer = new Customer("Customer", "customer@example.test");
+        var product = new Product("Product", "PRODUCT-1", 10m, 5);
+        var salesUser = new AppUser("Sales", "sales@example.test", UserRole.Sales, "test-hash");
+        var approver = new AppUser("Approver", "approver@example.test", UserRole.Approver, "test-hash");
+        context.AddRange(customer, product, salesUser, approver);
+        await context.SaveChangesAsync();
+
+        var command = new CreateSalesOrderCommand(
+            customer.Id,
+            [new CreateSalesOrderItem(product.Id, 1)]);
+        var approverWorkflow = CreateWorkflow(context, approver.Id);
+        await Assert.ThrowsAsync<WorkflowAuthorizationException>(() =>
+            approverWorkflow.CreateDraftAsync(command));
+
+        var salesWorkflow = CreateWorkflow(context, salesUser.Id);
+        var draft = await salesWorkflow.CreateDraftAsync(command);
+        await salesWorkflow.SubmitAsync(draft.Id);
+        await Assert.ThrowsAsync<WorkflowAuthorizationException>(() =>
+            salesWorkflow.ApproveAsync(draft.Id));
+        await Assert.ThrowsAsync<WorkflowAuthorizationException>(() =>
+            salesWorkflow.ListPendingApprovalsAsync());
+    }
+
+    [Fact]
+    public async Task Phase4MigrationBackfillsLegacyOrdersWithoutDataLoss()
+    {
+        const string phase3Migration = "20261017092052_Phase3ApplicationWorkflow";
+        await using var database = await SqlServerTestDatabase.CreateAsync(phase3Migration);
+        await using var context = database.CreateContext();
+        var userId = Guid.NewGuid();
+        var customerId = Guid.NewGuid();
+        var orderId = Guid.NewGuid();
+
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            INSERT INTO AppUsers (Id, Name, Email, Role, CreatedAt)
+            VALUES ({userId}, N'Legacy User', N'legacy@example.test', 1, SYSUTCDATETIME());
+            INSERT INTO Customers (Id, Name, Email, CreatedAt, IsActive)
+            VALUES ({customerId}, N'Legacy Customer', N'customer@example.test', SYSUTCDATETIME(), 1);
+            INSERT INTO SalesOrders (Id, CustomerId, Status, CreatedAt, SubmittedAt, DecidedAt)
+            VALUES ({orderId}, {customerId}, 0, SYSUTCDATETIME(), NULL, NULL);
+            """);
+
+        await context.GetService<IMigrator>().MigrateAsync();
+        context.ChangeTracker.Clear();
+
+        var order = await context.SalesOrders.SingleAsync(entity => entity.Id == orderId);
+        var owner = await context.AppUsers.SingleAsync(entity => entity.Id == order.CreatedByUserId);
+        var existingUser = await context.AppUsers.SingleAsync(entity => entity.Id == userId);
+        Assert.Equal("Legacy Order Owner", owner.Name);
+        Assert.Equal("!PASSWORD-RESET-REQUIRED!", owner.PasswordHash);
+        Assert.Equal("!PASSWORD-RESET-REQUIRED!", existingUser.PasswordHash);
     }
 
     [Fact]
@@ -176,11 +266,12 @@ public sealed class SalesOrderWorkflowIntegrationTests
         await using var context = database.CreateContext();
         var customer = new Customer("Customer", "customer@example.test");
         var product = new Product("Product", "PRODUCT-1", 10m, stockOnHand);
-        context.AddRange(customer, product);
+        var user = new AppUser("Sales", "sales@example.test", UserRole.Sales, "test-hash");
+        context.AddRange(customer, product, user);
         var orders = Enumerable.Range(0, orderCount)
             .Select(_ =>
             {
-                var order = new SalesOrder(customer.Id);
+                var order = new SalesOrder(customer.Id, user.Id);
                 order.AddItem(product, quantity);
                 return order;
             })
@@ -199,7 +290,7 @@ public sealed class SalesOrderWorkflowIntegrationTests
 
     private sealed class SqlServerTestDatabase(string connectionString) : IAsyncDisposable
     {
-        public static async Task<SqlServerTestDatabase> CreateAsync()
+        public static async Task<SqlServerTestDatabase> CreateAsync(string? targetMigration = null)
         {
             var server = Environment.GetEnvironmentVariable("ERPFLOW_TEST_SQLSERVER") ?? @".\SQLEXPRESS";
             var databaseName = $"ERPFlow_Phase3Tests_{Guid.NewGuid():N}";
@@ -213,7 +304,7 @@ public sealed class SalesOrderWorkflowIntegrationTests
             }.ConnectionString;
             var database = new SqlServerTestDatabase(connectionString);
             await using var context = database.CreateContext();
-            await context.Database.MigrateAsync();
+            await context.GetService<IMigrator>().MigrateAsync(targetMigration);
             return database;
         }
 

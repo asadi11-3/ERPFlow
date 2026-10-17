@@ -8,7 +8,7 @@ public interface ISalesOrderPersistence
 
     Task<Customer?> FindCustomerAsync(Guid customerId, CancellationToken cancellationToken = default);
 
-    Task<bool> AppUserExistsAsync(Guid userId, CancellationToken cancellationToken = default);
+    Task<AppUser?> FindAppUserAsync(Guid userId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<Product>> GetProductsAsync(
         IReadOnlyCollection<Guid> productIds,

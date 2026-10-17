@@ -4,7 +4,7 @@ namespace ERPFlow.Domain.Entities;
 
 public sealed class AppUser
 {
-    public AppUser(string name, string email, UserRole role)
+    public AppUser(string name, string email, UserRole role, string passwordHash)
     {
         if (!Enum.IsDefined(role))
         {
@@ -13,8 +13,9 @@ public sealed class AppUser
 
         Id = Guid.NewGuid();
         Name = RequireText(name, nameof(name));
-        Email = RequireText(email, nameof(email));
+        Email = RequireText(email, nameof(email)).ToLowerInvariant();
         Role = role;
+        PasswordHash = RequireText(passwordHash, nameof(passwordHash));
         CreatedAt = DateTime.UtcNow;
     }
 
@@ -25,6 +26,8 @@ public sealed class AppUser
     public string Email { get; private set; }
 
     public UserRole Role { get; private set; }
+
+    public string PasswordHash { get; private set; }
 
     public DateTime CreatedAt { get; private set; }
 

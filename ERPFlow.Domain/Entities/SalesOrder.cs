@@ -10,15 +10,21 @@ public sealed class SalesOrder
     private readonly ReadOnlyCollection<SalesOrderItem> _readOnlyItems;
     private readonly ReadOnlyCollection<StockReservation> _readOnlyReservations;
 
-    public SalesOrder(Guid customerId)
+    public SalesOrder(Guid customerId, Guid createdByUserId)
     {
         if (customerId == Guid.Empty)
         {
             throw new ArgumentException("A customer ID is required.", nameof(customerId));
         }
 
+        if (createdByUserId == Guid.Empty)
+        {
+            throw new ArgumentException("A creator user ID is required.", nameof(createdByUserId));
+        }
+
         Id = Guid.NewGuid();
         CustomerId = customerId;
+        CreatedByUserId = createdByUserId;
         Status = OrderStatus.Draft;
         CreatedAt = DateTime.UtcNow;
         _readOnlyItems = _items.AsReadOnly();
@@ -28,6 +34,8 @@ public sealed class SalesOrder
     public Guid Id { get; private set; }
 
     public Guid CustomerId { get; private set; }
+
+    public Guid CreatedByUserId { get; private set; }
 
     public OrderStatus Status { get; private set; }
 

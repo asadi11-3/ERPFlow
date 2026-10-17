@@ -26,12 +26,12 @@ public sealed class EfSalesOrderPersistence(ERPFlowDbContext context) : ISalesOr
             .AsNoTracking()
             .SingleOrDefaultAsync(customer => customer.Id == customerId, cancellationToken);
 
-    public Task<bool> AppUserExistsAsync(
+    public Task<AppUser?> FindAppUserAsync(
         Guid userId,
         CancellationToken cancellationToken = default) =>
         context.AppUsers
             .AsNoTracking()
-            .AnyAsync(user => user.Id == userId, cancellationToken);
+            .SingleOrDefaultAsync(user => user.Id == userId, cancellationToken);
 
     public async Task<IReadOnlyList<Product>> GetProductsAsync(
         IReadOnlyCollection<Guid> productIds,

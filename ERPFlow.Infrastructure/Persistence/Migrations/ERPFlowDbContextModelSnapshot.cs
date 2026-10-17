@@ -41,6 +41,11 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
                     b.Property<int>("Role")
                         .HasColumnType("int");
 
@@ -174,6 +179,9 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         .HasPrecision(7)
                         .HasColumnType("datetime2(7)");
 
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("CustomerId")
                         .HasColumnType("uniqueidentifier");
 
@@ -197,6 +205,8 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Status");
+
+                    b.HasIndex("CreatedByUserId", "CreatedAt");
 
                     b.HasIndex("CustomerId", "CreatedAt");
 
@@ -291,6 +301,12 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("ERPFlow.Domain.Entities.SalesOrder", b =>
                 {
+                    b.HasOne("ERPFlow.Domain.Entities.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("ERPFlow.Domain.Entities.Customer", null)
                         .WithMany()
                         .HasForeignKey("CustomerId")
