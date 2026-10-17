@@ -1,1 +1,7 @@
-<Solution />
+<Solution>
+  <Project Path="ERPFlow.Api/ERPFlow.Api.csproj" />
+  <Project Path="ERPFlow.Application/ERPFlow.Application.csproj" />
+  <Project Path="ERPFlow.Domain/ERPFlow.Domain.csproj" />
+  <Project Path="ERPFlow.Infrastructure/ERPFlow.Infrastructure.csproj" />
+  <Project Path="ERPFlow.Tests/ERPFlow.Tests.csproj" />
+</Solution>
