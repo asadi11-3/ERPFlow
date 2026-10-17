@@ -10,6 +10,7 @@ public sealed class SalesOrderConfiguration : IEntityTypeConfiguration<SalesOrde
     {
         builder.ToTable("SalesOrders");
         builder.HasKey(order => order.Id);
+        builder.Property(order => order.Id).ValueGeneratedNever();
 
         builder.Property(order => order.Status).IsRequired();
         builder.Property(order => order.CreatedAt)
@@ -33,11 +34,11 @@ public sealed class SalesOrderConfiguration : IEntityTypeConfiguration<SalesOrde
         builder.Navigation(order => order.Items)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
-        builder.HasMany<StockReservation>("_reservations")
+        builder.HasMany(order => order.Reservations)
             .WithOne()
             .HasForeignKey(reservation => reservation.SalesOrderId)
             .OnDelete(DeleteBehavior.Cascade);
-        builder.Navigation("_reservations")
+        builder.Navigation(order => order.Reservations)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.HasIndex(order => new { order.CustomerId, order.CreatedAt });

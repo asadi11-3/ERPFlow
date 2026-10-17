@@ -14,6 +14,7 @@ public sealed class SalesOrderItemConfiguration : IEntityTypeConfiguration<Sales
             table.HasCheckConstraint("CK_SalesOrderItems_UnitPrice", "[UnitPrice] >= 0");
         });
         builder.HasKey(item => item.Id);
+        builder.Property(item => item.Id).ValueGeneratedNever();
 
         builder.Property(item => item.Quantity).IsRequired();
         builder.Property(item => item.UnitPrice)

@@ -18,7 +18,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\ERPFlow.Application\ERPFlow.Application.csproj" />
     <ProjectReference Include="..\ERPFlow.Domain\ERPFlow.Domain.csproj" />
+    <ProjectReference Include="..\ERPFlow.Infrastructure\ERPFlow.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

@@ -7,6 +7,7 @@ public sealed class Customer
         Id = Guid.NewGuid();
         Name = RequireText(name, nameof(name));
         Email = RequireText(email, nameof(email));
+        IsActive = true;
         CreatedAt = DateTime.UtcNow;
     }
 
@@ -16,7 +17,13 @@ public sealed class Customer
 
     public string Email { get; private set; }
 
+    public bool IsActive { get; private set; }
+
     public DateTime CreatedAt { get; private set; }
+
+    public void Activate() => IsActive = true;
+
+    public void Deactivate() => IsActive = false;
 
     private static string RequireText(string value, string parameterName)
     {

@@ -10,6 +10,7 @@ public sealed class ApprovalHistoryConfiguration : IEntityTypeConfiguration<Appr
     {
         builder.ToTable("ApprovalHistories");
         builder.HasKey(history => history.Id);
+        builder.Property(history => history.Id).ValueGeneratedNever();
 
         builder.Property(history => history.Action).IsRequired();
         builder.Property(history => history.Comments).HasMaxLength(1000);

@@ -10,12 +10,16 @@ public sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
     {
         builder.ToTable("Customers");
         builder.HasKey(customer => customer.Id);
+        builder.Property(customer => customer.Id).ValueGeneratedNever();
 
         builder.Property(customer => customer.Name)
             .HasMaxLength(200)
             .IsRequired();
         builder.Property(customer => customer.Email)
             .HasMaxLength(320)
+            .IsRequired();
+        builder.Property(customer => customer.IsActive)
+            .HasDefaultValue(true)
             .IsRequired();
         builder.Property(customer => customer.CreatedAt)
             .HasPrecision(7)

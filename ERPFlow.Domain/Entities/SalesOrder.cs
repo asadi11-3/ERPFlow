@@ -8,6 +8,7 @@ public sealed class SalesOrder
     private readonly List<SalesOrderItem> _items = [];
     private readonly List<StockReservation> _reservations = [];
     private readonly ReadOnlyCollection<SalesOrderItem> _readOnlyItems;
+    private readonly ReadOnlyCollection<StockReservation> _readOnlyReservations;
 
     public SalesOrder(Guid customerId)
     {
@@ -21,6 +22,7 @@ public sealed class SalesOrder
         Status = OrderStatus.Draft;
         CreatedAt = DateTime.UtcNow;
         _readOnlyItems = _items.AsReadOnly();
+        _readOnlyReservations = _reservations.AsReadOnly();
     }
 
     public Guid Id { get; private set; }
@@ -35,6 +37,8 @@ public sealed class SalesOrder
 
     public DateTime? DecidedAt { get; private set; }
     public IReadOnlyList<SalesOrderItem> Items => _readOnlyItems;
+
+    public IReadOnlyList<StockReservation> Reservations => _readOnlyReservations;
 
     public decimal TotalAmount => _items.Sum(item => item.LineTotal);
 

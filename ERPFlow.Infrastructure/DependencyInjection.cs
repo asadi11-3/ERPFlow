@@ -1,3 +1,4 @@
+using ERPFlow.Application.Abstractions;
 using ERPFlow.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,6 +12,7 @@ public static class DependencyInjection
         string connectionString)
     {
         services.AddDbContext<ERPFlowDbContext>(options => options.UseSqlServer(connectionString));
+        services.AddScoped<ISalesOrderPersistence, EfSalesOrderPersistence>();
         return services;
     }
 }

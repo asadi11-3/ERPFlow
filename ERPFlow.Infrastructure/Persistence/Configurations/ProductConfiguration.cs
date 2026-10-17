@@ -15,6 +15,7 @@ public sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
             table.HasCheckConstraint("CK_Products_ReservedQuantity", "[ReservedQuantity] >= 0 AND [ReservedQuantity] <= [StockOnHand]");
         });
         builder.HasKey(product => product.Id);
+        builder.Property(product => product.Id).ValueGeneratedNever();
 
         builder.Property(product => product.Name)
             .HasMaxLength(200)

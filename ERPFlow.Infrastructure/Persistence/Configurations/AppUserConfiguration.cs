@@ -10,6 +10,7 @@ public sealed class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
     {
         builder.ToTable("AppUsers");
         builder.HasKey(user => user.Id);
+        builder.Property(user => user.Id).ValueGeneratedNever();
 
         builder.Property(user => user.Name)
             .HasMaxLength(200)

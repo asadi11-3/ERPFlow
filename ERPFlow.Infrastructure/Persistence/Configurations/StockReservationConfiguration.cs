@@ -11,6 +11,7 @@ public sealed class StockReservationConfiguration : IEntityTypeConfiguration<Sto
         builder.ToTable("StockReservations", table =>
             table.HasCheckConstraint("CK_StockReservations_Quantity", "[Quantity] > 0"));
         builder.HasKey(reservation => reservation.Id);
+        builder.Property(reservation => reservation.Id).ValueGeneratedNever();
 
         builder.Property(reservation => reservation.Quantity).IsRequired();
         builder.Property(reservation => reservation.IsReleased).IsRequired();

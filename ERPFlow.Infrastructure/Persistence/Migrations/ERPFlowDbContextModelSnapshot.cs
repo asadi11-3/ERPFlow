@@ -25,7 +25,6 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("ERPFlow.Domain.Entities.AppUser", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAt")
@@ -56,7 +55,6 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("ERPFlow.Domain.Entities.ApprovalHistory", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int>("Action")
@@ -88,7 +86,6 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("ERPFlow.Domain.Entities.Customer", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAt")
@@ -99,6 +96,11 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(320)
                         .HasColumnType("nvarchar(320)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -116,7 +118,6 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("ERPFlow.Domain.Entities.Product", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAt")
@@ -167,7 +168,6 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("ERPFlow.Domain.Entities.SalesOrder", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAt")
@@ -206,7 +206,6 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("ERPFlow.Domain.Entities.SalesOrderItem", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("ProductId")
@@ -240,7 +239,6 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("ERPFlow.Domain.Entities.StockReservation", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("CreatedAt")
@@ -324,7 +322,7 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.HasOne("ERPFlow.Domain.Entities.SalesOrder", null)
-                        .WithMany("_reservations")
+                        .WithMany("Reservations")
                         .HasForeignKey("SalesOrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -334,7 +332,7 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                 {
                     b.Navigation("Items");
 
-                    b.Navigation("_reservations");
+                    b.Navigation("Reservations");
                 });
 #pragma warning restore 612, 618
         }
