@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text.Json;
 using ERPFlow.Api;
 using ERPFlow.Application.SalesOrders;
 using ERPFlow.Domain.Entities;
@@ -89,14 +90,33 @@ public sealed class ApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task DevelopmentOpenApiAndScalarEndpointsAreAvailable()
+    public async Task DevelopmentOpenApiAndSwaggerUiEndpointsAreAvailable()
     {
         var openApiResponse = await client.GetAsync("/openapi/v1.json");
-        var scalarResponse = await client.GetAsync("/scalar/v1");
+        var swaggerResponse = await client.GetAsync("/swagger/index.html");
 
         Assert.Equal(HttpStatusCode.OK, openApiResponse.StatusCode);
-        Assert.Equal(HttpStatusCode.OK, scalarResponse.StatusCode);
-        Assert.Equal("text/html", scalarResponse.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(HttpStatusCode.OK, swaggerResponse.StatusCode);
+        Assert.Equal("text/html", swaggerResponse.Content.Headers.ContentType?.MediaType);
+        using var openApi = JsonDocument.Parse(await openApiResponse.Content.ReadAsStreamAsync());
+        var bearerScheme = openApi.RootElement
+            .GetProperty("components")
+            .GetProperty("securitySchemes")
+            .GetProperty("Bearer");
+        Assert.Equal("http", bearerScheme.GetProperty("type").GetString());
+        Assert.Equal("bearer", bearerScheme.GetProperty("scheme").GetString());
+        var pendingOperation = openApi.RootElement
+            .GetProperty("paths")
+            .GetProperty("/api/sales-orders/pending")
+            .GetProperty("get");
+        Assert.Contains(
+            pendingOperation.GetProperty("security").EnumerateArray(),
+            requirement => requirement.TryGetProperty("Bearer", out _));
+        var loginOperation = openApi.RootElement
+            .GetProperty("paths")
+            .GetProperty("/api/auth/login")
+            .GetProperty("post");
+        Assert.False(loginOperation.TryGetProperty("security", out _));
     }
 
     [Fact]

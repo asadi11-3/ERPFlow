@@ -10,7 +10,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
-using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -54,19 +53,39 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy(ApiPolicies.Approver, policy =>
         policy.RequireRole(UserRole.Approver.ToString(), UserRole.Administrator.ToString()));
 });
-builder.Services.AddOpenApi(options => options.AddDocumentTransformer((document, _, _) =>
+builder.Services.AddOpenApi(options =>
 {
-    document.Components ??= new OpenApiComponents();
-    document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
-    document.Components.SecuritySchemes[JwtBearerDefaults.AuthenticationScheme] = new OpenApiSecurityScheme
+    options.AddDocumentTransformer((document, _, _) =>
     {
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT",
-        Description = "JWT returned by POST /api/auth/login"
-    };
-    return Task.CompletedTask;
-}));
+        document.Components ??= new OpenApiComponents();
+        document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
+        document.Components.SecuritySchemes[JwtBearerDefaults.AuthenticationScheme] = new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            Description = "JWT returned by POST /api/auth/login"
+        };
+        return Task.CompletedTask;
+    });
+    options.AddOperationTransformer((operation, context, _) =>
+    {
+        var metadata = context.Description.ActionDescriptor.EndpointMetadata;
+        if (!metadata.OfType<IAuthorizeData>().Any() || metadata.OfType<IAllowAnonymous>().Any())
+        {
+            return Task.CompletedTask;
+        }
+
+        operation.Security ??= [];
+        operation.Security.Add(new OpenApiSecurityRequirement
+        {
+            [new OpenApiSecuritySchemeReference(
+                JwtBearerDefaults.AuthenticationScheme,
+                context.Document)] = []
+        });
+        return Task.CompletedTask;
+    });
+});
 builder.Services.AddInfrastructure(serviceProvider =>
     serviceProvider.GetRequiredService<IConfiguration>().GetConnectionString("ERPFlowDb")
         ?? throw new InvalidOperationException("Connection string 'ERPFlowDb' is not configured."));
@@ -82,8 +101,12 @@ app.UseAuthorization();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
-    app.MapScalarApiReference(options =>
-        options.AddPreferredSecuritySchemes(JwtBearerDefaults.AuthenticationScheme));
+    app.UseSwaggerUI(options =>
+    {
+        options.RoutePrefix = "swagger";
+        options.SwaggerEndpoint("/openapi/v1.json", "ERPFlow API v1");
+        options.EnablePersistAuthorization();
+    });
 
     await using var scope = app.Services.CreateAsyncScope();
     var context = scope.ServiceProvider.GetRequiredService<ERPFlowDbContext>();
