@@ -115,7 +115,7 @@ if (app.Environment.IsDevelopment())
     if (!string.IsNullOrWhiteSpace(demoPassword))
     {
         await scope.ServiceProvider.GetRequiredService<DevelopmentDataSeeder>()
-            .SeedAsync(demoPassword);
+            .SeedAsync(app.Environment.EnvironmentName, demoPassword);
     }
 }
 

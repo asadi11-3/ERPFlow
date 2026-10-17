@@ -58,6 +58,15 @@ public sealed class EfSalesOrderPersistence(ERPFlowDbContext context) : ISalesOr
             .SingleOrDefaultAsync(order => order.Id == orderId, cancellationToken);
     }
 
+    public Task<Guid?> FindOrderOwnerIdAsync(
+        Guid orderId,
+        CancellationToken cancellationToken = default) =>
+        context.SalesOrders
+            .AsNoTracking()
+            .Where(order => order.Id == orderId)
+            .Select(order => (Guid?)order.CreatedByUserId)
+            .SingleOrDefaultAsync(cancellationToken);
+
     public async Task<IReadOnlyList<SalesOrder>> ListPendingOrdersAsync(
         CancellationToken cancellationToken = default) =>
         await context.SalesOrders
@@ -67,6 +76,16 @@ public sealed class EfSalesOrderPersistence(ERPFlowDbContext context) : ISalesOr
             .Include(order => order.Reservations)
             .AsSplitQuery()
             .OrderBy(order => order.SubmittedAt)
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<ApprovalHistory>> ListApprovalHistoryAsync(
+        Guid orderId,
+        CancellationToken cancellationToken = default) =>
+        await context.ApprovalHistories
+            .AsNoTracking()
+            .Where(history => history.SalesOrderId == orderId)
+            .OrderBy(history => history.CreatedAt)
+            .ThenBy(history => history.Id)
             .ToListAsync(cancellationToken);
 
     public void AddOrder(SalesOrder order) => context.SalesOrders.Add(order);

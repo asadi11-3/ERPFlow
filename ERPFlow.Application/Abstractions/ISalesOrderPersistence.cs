@@ -19,7 +19,13 @@ public interface ISalesOrderPersistence
         bool tracking,
         CancellationToken cancellationToken = default);
 
+    Task<Guid?> FindOrderOwnerIdAsync(Guid orderId, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<SalesOrder>> ListPendingOrdersAsync(CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ApprovalHistory>> ListApprovalHistoryAsync(
+        Guid orderId,
+        CancellationToken cancellationToken = default);
 
     void AddOrder(SalesOrder order);
 

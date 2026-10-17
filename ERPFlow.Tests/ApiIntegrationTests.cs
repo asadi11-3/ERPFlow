@@ -70,6 +70,68 @@ public sealed class ApiIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task ApprovalHistoryEndpointRequiresAuthentication()
+    {
+        var response = await client.GetAsync($"/api/sales-orders/{Guid.NewGuid()}/history");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task ApprovalHistoryEndpointReturnsChronologicalAuditTrail()
+    {
+        var expected = await SeedOrderHistoryAsync("sales@erpflow.local");
+        SetToken(await LoginAsync("sales@erpflow.local"));
+
+        var history = await client.GetFromJsonAsync<ApprovalHistoryResult[]>(
+            $"/api/sales-orders/{expected.OrderId}/history");
+
+        Assert.NotNull(history);
+        Assert.Collection(
+            history,
+            submitted =>
+            {
+                Assert.Equal(ApprovalAction.Submitted, submitted.Action);
+                Assert.Equal(expected.ActorId, submitted.ActorId);
+                Assert.Equal(expected.SubmittedAt, submitted.TimestampUtc);
+                Assert.Equal(DateTimeKind.Utc, submitted.TimestampUtc.Kind);
+                Assert.Equal("Submitted first.", submitted.Remarks);
+            },
+            rejected =>
+            {
+                Assert.Equal(ApprovalAction.Rejected, rejected.Action);
+                Assert.Equal(expected.ActorId, rejected.ActorId);
+                Assert.Equal(expected.RejectedAt, rejected.TimestampUtc);
+                Assert.Equal(DateTimeKind.Utc, rejected.TimestampUtc.Kind);
+                Assert.Equal("Budget approval is required.", rejected.Remarks);
+            });
+    }
+
+    [Fact]
+    public async Task ApprovalHistoryEndpointReturnsNotFoundForMissingOrder()
+    {
+        SetToken(await LoginAsync("sales@erpflow.local"));
+
+        var response = await client.GetAsync($"/api/sales-orders/{Guid.NewGuid()}/history");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task ApprovalHistoryEndpointEnforcesSalesOwnership()
+    {
+        var expected = await SeedOrderHistoryAsync("sales@erpflow.local");
+        SetToken(await LoginAsync("sales2@erpflow.local"));
+
+        var response = await client.GetAsync($"/api/sales-orders/{expected.OrderId}/history");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
     public async Task InvalidCredentialsReturnUnauthorized()
     {
         var response = await client.PostAsJsonAsync(
@@ -77,6 +139,29 @@ public sealed class ApiIntegrationTests : IAsyncLifetime
             new LoginRequest("sales@erpflow.local", "wrong-password"));
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("sales@erpflow.local", false)]
+    [InlineData("sales2@erpflow.local", false)]
+    [InlineData("sales3@erpflow.local", false)]
+    [InlineData("approver@erpflow.local", true)]
+    [InlineData("admin@erpflow.local", true)]
+    public async Task SeededUsersAuthenticateAndAccessPermittedDemoData(string email, bool canApprove)
+    {
+        SetToken(await LoginAsync(email));
+        var customers = await client.GetFromJsonAsync<CustomerReferenceDto[]>("/api/reference/customers");
+        Assert.Equal(8, customers!.Length);
+        var response = await client.GetAsync("/api/sales-orders/pending");
+        Assert.Equal(canApprove ? HttpStatusCode.OK : HttpStatusCode.Forbidden, response.StatusCode);
+        if (canApprove)
+        {
+            var orders = await response.Content.ReadFromJsonAsync<SalesOrderResult[]>();
+            Assert.Equal(5, orders!.Length);
+            var history = await client.GetFromJsonAsync<ApprovalHistoryResult[]>(
+                $"/api/sales-orders/{orders[0].Id}/history");
+            Assert.Equal(ApprovalAction.Submitted, Assert.Single(history!).Action);
+        }
     }
 
     [Fact]
@@ -129,7 +214,7 @@ public sealed class ApiIntegrationTests : IAsyncLifetime
         SetToken(salesToken);
         var customers = await client.GetFromJsonAsync<CustomerReferenceDto[]>("/api/reference/customers");
         var products = await client.GetFromJsonAsync<ProductReferenceDto[]>("/api/reference/products");
-        var customer = Assert.Single(customers!);
+        var customer = Assert.Single(customers!, candidate => candidate.Email == "orders@contoso.local");
         var product = Assert.Single(products!, candidate => candidate.Sku == "SCAN-100");
 
         var createResponse = await client.PostAsJsonAsync(
@@ -179,6 +264,34 @@ public sealed class ApiIntegrationTests : IAsyncLifetime
         return (await response.Content.ReadFromJsonAsync<AccessTokenResult>())!.AccessToken;
     }
 
+    private async Task<HistorySeedResult> SeedOrderHistoryAsync(string ownerEmail)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var context = scope.ServiceProvider.GetRequiredService<ERPFlowDbContext>();
+        var owner = await context.AppUsers.SingleAsync(user => user.Email == ownerEmail);
+        var customer = await context.Customers.SingleAsync(candidate => candidate.Email == "orders@contoso.local");
+        var order = new SalesOrder(customer.Id, owner.Id);
+        context.SalesOrders.Add(order);
+        await context.SaveChangesAsync();
+
+        var submittedAt = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);
+        var rejectedAt = submittedAt.AddMinutes(10);
+        var submittedAction = (int)ApprovalAction.Submitted;
+        var rejectedAction = (int)ApprovalAction.Rejected;
+        var submittedRemarks = "Submitted first.";
+        var rejectedReason = "Budget approval is required.";
+
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            INSERT INTO ApprovalHistories (Id, SalesOrderId, UserId, Action, Comments, CreatedAt)
+            VALUES ({Guid.NewGuid()}, {order.Id}, {owner.Id}, {rejectedAction}, {rejectedReason}, {rejectedAt});
+            INSERT INTO ApprovalHistories (Id, SalesOrderId, UserId, Action, Comments, CreatedAt)
+            VALUES ({Guid.NewGuid()}, {order.Id}, {owner.Id}, {submittedAction}, {submittedRemarks}, {submittedAt});
+            """);
+
+        return new HistorySeedResult(order.Id, owner.Id, submittedAt, rejectedAt);
+    }
+
     private void SetToken(string token) =>
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -226,4 +339,10 @@ public sealed class ApiIntegrationTests : IAsyncLifetime
         string Sku,
         decimal UnitPrice,
         int AvailableStock);
+
+    private sealed record HistorySeedResult(
+        Guid OrderId,
+        Guid ActorId,
+        DateTime SubmittedAt,
+        DateTime RejectedAt);
 }

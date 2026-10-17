@@ -32,6 +32,7 @@ ERP systems are shaped by state transitions, authorization, consistency, and aud
 - Submission with stock validation and reservation.
 - Pending-approval queue.
 - Approval and rejection with immutable audit records.
+- Chronological approval-history retrieval with actor and remarks.
 - Stock release on rejection.
 - Sales-user ownership enforcement.
 - RFC 7807-style Problem Details responses.
@@ -102,10 +103,32 @@ This sample does not implement refresh tokens, token revocation, account adminis
 | `GET` | `/api/reference/products` | Authenticated | `200 OK` |
 | `POST` | `/api/sales-orders` | Sales, Administrator | `201 Created` |
 | `GET` | `/api/sales-orders/{id}` | Authenticated; Sales ownership applies | `200 OK` |
+| `GET` | `/api/sales-orders/{id}/history` | Authenticated; Sales ownership applies | `200 OK` |
 | `POST` | `/api/sales-orders/{id}/submit` | Sales, Administrator; Sales ownership applies | `200 OK` |
 | `GET` | `/api/sales-orders/pending` | Approver, Administrator | `200 OK` |
 | `POST` | `/api/sales-orders/{id}/approve` | Approver, Administrator | `200 OK` |
 | `POST` | `/api/sales-orders/{id}/reject` | Approver, Administrator | `200 OK` |
+
+Approval history is returned oldest first. Approver and Administrator users can read any existing order's history; Sales users can read only history for orders they created. Missing authentication returns `401`, an ownership violation returns `403`, and an unknown order returns `404`.
+
+```json
+[
+  {
+    "action": 2,
+    "actorId": "11111111-1111-1111-1111-111111111111",
+    "timestampUtc": "2026-10-17T12:00:00Z",
+    "remarks": "Submitted for approval."
+  },
+  {
+    "action": 0,
+    "actorId": "22222222-2222-2222-2222-222222222222",
+    "timestampUtc": "2026-10-17T12:05:00Z",
+    "remarks": "Approved after review."
+  }
+]
+```
+
+`action` uses the existing numeric `ApprovalAction` values: Approved `0`, Rejected `1`, and Submitted `2`. `remarks` is nullable and contains the persisted submission remark, approval comments, or rejection reason.
 
 ## 9. Error Contract
 
@@ -140,7 +163,27 @@ dotnet user-secrets set --project ERPFlow.Api "DemoUsers:Password" "replace-with
 dotnet run --project ERPFlow.Api --launch-profile https
 ```
 
-In Development, startup applies pending migrations. Supplying `DemoUsers:Password` also seeds demo users, one customer, and two products idempotently. Open `https://localhost:7165/swagger` after trusting the local development certificate if necessary.
+In Development, startup applies pending migrations. Supplying the `DemoUsers:Password` secret enables the demo dataset below. Open `https://localhost:7165/swagger` after trusting the local development certificate if necessary.
+
+### Development Demo Dataset
+
+| Entity | Initial empty-database count |
+| --- | ---: |
+| Users | 5 (3 Sales, 1 Approver, 1 Administrator) |
+| Customers | 10 (8 active, 2 inactive) |
+| Products | 20 |
+| Sales orders | 15 (4 Draft, 5 PendingApproval, 3 Approved, 3 Rejected) |
+| Order items | 30 |
+| Stock reservations | 23 (17 active, 6 released) |
+| Approval history | 17 (11 Submitted, 3 Approved, 3 Rejected) |
+
+Accounts are `sales@erpflow.local`, `sales2@erpflow.local`, and `sales3@erpflow.local` (Sales), `approver@erpflow.local` (Approver), and `admin@erpflow.local` (Administrator). New accounts use the configured development secret through the existing password hasher; existing hashes are never replaced.
+
+The catalog includes warehouse, packing, and safety supplies, an out-of-stock scanner battery (`BATT-100`), and a low-stock dispenser (`DISP-002`, stock 2). Orders are spread equally across Sales users and use Domain transitions with persisted price snapshots. Pending and approved orders retain reservations; rejected orders release them.
+
+Seeding is Development-only and transactional. Customer email, product SKU, and user email identify reference records; deterministic namespaced GUIDs identify the 15 orders. Repeated startup skips existing orders, including ones subsequently changed by users. Existing references are reused without overwriting fields. Incompatible roles, inactive customers, insufficient stock, or inconsistent reservation totals cause affected missing scenarios to be skipped with a warning, not repaired destructively. Counts therefore describe a fresh database, not a guarantee for previously modified databases. Concurrent changes are protected by transactions, unique constraints, and rowversions; a conflict rolls back the seed transaction rather than overwriting data.
+
+Use Swagger reference endpoints for dropdown data, sign in as Approver for the pending queue, and read order detail/history by ID. There is no all-orders endpoint; see the integration guide for a read-only SQL query to discover Draft, Approved, and Rejected IDs.
 
 ## 12. Configuration
 
@@ -165,7 +208,7 @@ dotnet ef migrations has-pending-model-changes --project ERPFlow.Infrastructure 
 dotnet list ERPFlow.slnx package --vulnerable --include-transitive
 ```
 
-The verified MVP baseline is 21 passing tests, zero build warnings/errors, no pending EF model changes, and no known vulnerable direct or transitive packages. Integration tests create isolated SQL Server databases, apply real migrations, exercise the workflow or HTTP API, and remove the databases afterward.
+The automated suite covers workflow/API behavior and development-seed counts, consistency, preservation, idempotency, environment gating, and demo-user permissions. Integration tests create isolated SQL Server databases, apply real migrations, exercise the workflow or HTTP API, and remove the databases afterward.
 
 ## 14. Scope And Trade-Offs
 

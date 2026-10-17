@@ -23,6 +23,12 @@ public sealed record StockReservationResult(
     DateTime CreatedAt,
     DateTime? ReleasedAt);
 
+public sealed record ApprovalHistoryResult(
+    ApprovalAction Action,
+    Guid ActorId,
+    DateTime TimestampUtc,
+    string? Remarks);
+
 public sealed record SalesOrderResult(
     Guid Id,
     Guid CustomerId,
@@ -54,6 +60,10 @@ public interface ISalesOrderWorkflow
         CancellationToken cancellationToken = default);
 
     Task<SalesOrderResult> GetByIdAsync(Guid orderId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ApprovalHistoryResult>> GetApprovalHistoryAsync(
+        Guid orderId,
+        CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<SalesOrderResult>> ListPendingApprovalsAsync(
         CancellationToken cancellationToken = default);

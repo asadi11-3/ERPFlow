@@ -142,6 +142,22 @@ public sealed class SalesOrderWorkflow(
         return ToResult(order);
     }
 
+    public async Task<IReadOnlyList<ApprovalHistoryResult>> GetApprovalHistoryAsync(
+        Guid orderId,
+        CancellationToken cancellationToken = default)
+    {
+        var ownerId = await persistence.FindOrderOwnerIdAsync(orderId, cancellationToken)
+            ?? throw new EntityNotFoundException(nameof(SalesOrder), orderId);
+        var actor = await GetActorAsync(cancellationToken);
+        EnsureOwner(ownerId, actor);
+        var history = await persistence.ListApprovalHistoryAsync(orderId, cancellationToken);
+        return history.Select(entry => new ApprovalHistoryResult(
+            entry.Action,
+            entry.UserId,
+            DateTime.SpecifyKind(entry.CreatedAt, DateTimeKind.Utc),
+            entry.Comments)).ToArray();
+    }
+
     public async Task<IReadOnlyList<SalesOrderResult>> ListPendingApprovalsAsync(
         CancellationToken cancellationToken = default)
     {
@@ -178,7 +194,12 @@ public sealed class SalesOrderWorkflow(
 
     private static void EnsureOwner(SalesOrder order, AppUser actor)
     {
-        if (actor.Role == UserRole.Sales && order.CreatedByUserId != actor.Id)
+        EnsureOwner(order.CreatedByUserId, actor);
+    }
+
+    private static void EnsureOwner(Guid ownerId, AppUser actor)
+    {
+        if (actor.Role == UserRole.Sales && ownerId != actor.Id)
         {
             throw new WorkflowAuthorizationException("Sales users can only access their own orders.");
         }

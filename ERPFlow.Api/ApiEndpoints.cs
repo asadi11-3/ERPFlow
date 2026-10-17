@@ -52,6 +52,11 @@ public static class ApiEndpoints
                 ISalesOrderWorkflow workflow,
                 CancellationToken ct) => workflow.GetByIdAsync(id, ct))
             .RequireAuthorization();
+        orders.MapGet("/{id:guid}/history", (
+                Guid id,
+                ISalesOrderWorkflow workflow,
+                CancellationToken ct) => workflow.GetApprovalHistoryAsync(id, ct))
+            .RequireAuthorization();
         orders.MapPost("/{id:guid}/submit", (
                 Guid id,
                 ISalesOrderWorkflow workflow,
