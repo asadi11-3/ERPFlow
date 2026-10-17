@@ -1,0 +1,73 @@
+<main class="page">
+  <div class="card">
+    <section class="pitch">
+      <app-logo class="on-dark" />
+      <div class="copy">
+        <h1>Simplify orders. Accelerate approvals.</h1>
+        <p>Create sales orders, send them for approval and track every decision in one place.</p>
+      </div>
+      <ul>
+        <li><app-icon name="check" /> Manage sales orders</li>
+        <li><app-icon name="check" /> Streamline approvals</li>
+        <li><app-icon name="check" /> Real-time stock availability</li>
+      </ul>
+    </section>
+
+    <section class="form-side">
+      <form (submit)="submit($event)" novalidate>
+        <div class="head">
+          <h2>Welcome back</h2>
+          <p>Sign in to your ERPFlow account</p>
+        </div>
+
+        @if (error(); as message) {
+          <p class="error" role="alert">{{ message }}</p>
+        }
+
+        <div class="field">
+          <label for="email">Email address</label>
+          <input
+            #emailInput
+            id="email"
+            type="email"
+            name="email"
+            autocomplete="username"
+            [value]="email()"
+            (input)="email.set(emailInput.value)"
+          />
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <div class="password">
+            <input
+              #passwordInput
+              id="password"
+              name="password"
+              autocomplete="current-password"
+              [type]="showPassword() ? 'text' : 'password'"
+              [value]="password()"
+              (input)="password.set(passwordInput.value)"
+            />
+            <button
+              type="button"
+              class="toggle"
+              [attr.aria-label]="showPassword() ? 'Hide password' : 'Show password'"
+              [attr.aria-pressed]="showPassword()"
+              (click)="showPassword.set(!showPassword())"
+            >
+              <app-icon [name]="showPassword() ? 'eye-off' : 'eye'" />
+            </button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" [disabled]="!canSubmit()">
+          {{ busy() ? 'Signing in...' : 'Sign in' }}
+          @if (!busy()) {
+            <app-icon name="arrow-right" />
+          }
+        </button>
+      </form>
+    </section>
+  </div>
+</main>

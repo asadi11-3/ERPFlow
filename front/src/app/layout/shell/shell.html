@@ -1,0 +1,54 @@
+<div class="shell">
+  <button type="button" class="scrim" [class.open]="drawerOpen()" tabindex="-1" aria-label="Close menu" (click)="drawerOpen.set(false)"></button>
+  <aside class="side" id="side" [class.open]="drawerOpen()">
+    <div class="side-head">
+      <app-logo />
+      <button type="button" class="close" aria-label="Close menu" (click)="drawerOpen.set(false)">
+        <app-icon name="x" />
+      </button>
+    </div>
+    <nav aria-label="Main">
+      @for (item of nav(); track item.path) {
+        <a [routerLink]="item.path" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: item.path === '/orders' }" class="link" (click)="drawerOpen.set(false)">
+          <app-icon [name]="item.icon" />
+          <span>{{ item.label }}</span>
+          @if (item.path === '/approvals' && pending.count() > 0) {
+            <span class="badge" aria-label="{{ pending.count() }} pending">{{ pending.count() }}</span>
+          }
+        </a>
+      }
+    </nav>
+  </aside>
+
+  <div class="main">
+    @if (session.user(); as user) {
+      <header class="top">
+        <button type="button" class="burger" aria-label="Open menu" aria-controls="side" [attr.aria-expanded]="drawerOpen()" (click)="drawerOpen.set(true)">
+          <app-icon name="menu" />
+        </button>
+        <div class="who">
+          <span class="avatar" aria-hidden="true">{{ initials() }}</span>
+          <span class="meta">
+            <strong>{{ user.name }}</strong>
+            <small>{{ user.role }}</small>
+          </span>
+        </div>
+        <button type="button" class="out" (click)="signOutOpen.set(true)">
+          <app-icon name="logout" />
+          <span>Sign out</span>
+        </button>
+      </header>
+    }
+    <main class="content">
+      <router-outlet />
+    </main>
+  </div>
+</div>
+
+<app-confirm-dialog
+  [(open)]="signOutOpen"
+  heading="Sign out?"
+  message="You will need to sign in again to continue."
+  confirmLabel="Sign out"
+  (confirmed)="session.logout()"
+/>

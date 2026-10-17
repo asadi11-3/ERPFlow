@@ -363,3 +363,9 @@ MigrationBackup/
 FodyWeavers.xsd
 .omo/
 .lean-ctx/
+
+# Playwright MCP artifacts
+.playwright-mcp/
+
+# Local agent instructions
+AGENTS.md

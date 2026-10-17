@@ -1,6 +1,6 @@
 # ERPFlow
 
-ERPFlow is a focused sales-order and approval API built with .NET 10, ASP.NET Core Minimal APIs, Entity Framework Core, and SQL Server. It demonstrates how domain rules, application orchestration, persistence, authentication, and HTTP concerns can be separated without hiding the business workflow behind framework code.
+ERPFlow is a focused sales-order and approval system: a .NET 10 API (ASP.NET Core Minimal APIs, Entity Framework Core, SQL Server) with an Angular client in `front/`. It demonstrates how domain rules, application orchestration, persistence, authentication, and HTTP concerns can be separated without hiding the business workflow behind framework code.
 
 ## 1. Project Overview
 
@@ -156,6 +156,7 @@ Errors use `application/problem+json` where a response body is available.
 - Built-in OpenAPI generation with Swashbuckle Swagger UI
 - xUnit and `Microsoft.AspNetCore.Mvc.Testing`
 - SQL Server-backed integration tests
+- Angular 22 (zoneless, signals) client with Tom Select, Vitest, and ESLint
 
 ## 11. Getting Started
 
@@ -190,7 +191,62 @@ Seeding is Development-only and transactional. Customer email, product SKU, and 
 
 Use Swagger reference endpoints for dropdown data and `GET /api/sales-orders` to browse visible orders across all states. Sign in as Approver or Administrator to see all 15 initial demo orders, or as Sales to see only the five owned orders. Read order detail/history using returned IDs.
 
-## 12. Configuration
+## 12. Frontend
+
+The Angular client lives in [`front/`](front). It consumes only the 11 API operations in section 8 (GET and POST) and never invents endpoints or data.
+
+| Area | Choice |
+| --- | --- |
+| Framework | Angular 22, standalone components, zoneless, signals, lazy routes |
+| Styling | Global SCSS tokens in `src/styles.scss` (OKLCH, one teal accent, Geist and Geist Mono via Fontsource) |
+| Select inputs | [Tom Select](https://tom-select.js.org/) wrapped by `ui/select` |
+| Tests and lint | Vitest, `ng lint` with `eslint-plugin-boundaries` |
+
+Pages: `/` landing, `/login`, `/orders`, `/orders/new`, `/orders/:id`, `/approvals`, `/approvals/:id`, `/reference`. A sidebar and topbar shell wraps every route except `/login`; it becomes a drawer below 861px and nav items are hidden by role.
+
+### Run it
+
+1. Start the API (section 11) so it listens on `https://localhost:7165`. Development CORS already allows `http://localhost:4200`.
+2. Start the client:
+
+```powershell
+cd front
+npm.cmd install
+npm.cmd start
+```
+
+Open `http://localhost:4200`. Sign in with a seeded demo account from section 11, using the `DemoUsers:Password` you set. If the API runs elsewhere, change `API_BASE_URL` in `front/src/app/core/config.ts`.
+
+| Command (from `front/`) | Purpose |
+| --- | --- |
+| `npm start` | Dev server on port 4200 |
+| `npm run build` | Production build into `front/dist` |
+| `npm test -- --watch=false` | Unit tests |
+| `npm run lint` | Lint and architecture boundaries; must pass |
+
+On Windows PowerShell, use `npm.cmd` if script execution blocks `npm.ps1`.
+
+### Code layout and guidance
+
+```text
+front/src/app
+  core/      headless: API clients, auth session, guards, interceptor
+  layout/    app shell (sidebar, topbar, drawer)
+  ui/        generic standalone components (no core imports)
+  pattern/   reusable business UI (order view parts)
+  feature/   lazy routes: landing, login, orders, approvals, reference
+```
+
+- Signals only: `signal`, `computed`, `input`, `output`, `model`. Use `@if`/`@for`/`@switch`, `inject()`, and standalone components. No NgModules, `@Input`/`@Output` decorators, `AsyncPipe`, or `ChangeDetectorRef`.
+- Keep the simplest thing that works and tolerate small duplication before extracting. Do not add dependencies without a reason.
+- Do not edit backend projects, `docs/openapi`, or migrations from frontend work.
+- Do not ship demo passwords. Show only data the API returns (an order's short id is the first 8 characters of its GUID, uppercased).
+- Motion: use tokens `--ease-out`, `--ease-in-out`, `--ease-drawer`; animate only `transform` and `opacity`, keep UI transitions under 300ms, and respect `prefers-reduced-motion`.
+- Loading states use layout-matched skeletons (`.skeleton`, `.skel-row`), not spinners. Every list needs empty and error states.
+- Tables clip long text with `.clip` plus a `title`, and stack into labeled rows in narrow containers. Pages must never scroll horizontally.
+- Accessibility basics are required: labeled inputs, 44px touch targets, visible focus, keyboard-operable menus and dialogs.
+
+## 13. Configuration
 
 | Key | Required | Default or behavior |
 | --- | --- | --- |
@@ -204,7 +260,7 @@ Use Swagger reference endpoints for dropdown data and `GET /api/sales-orders` to
 
 Keep signing keys and passwords out of source control. User Secrets are appropriate for local development; production should use a managed secret provider and environment-specific configuration.
 
-## 13. Testing And Verification
+## 14. Testing And Verification
 
 ```powershell
 dotnet build ERPFlow.slnx
@@ -215,14 +271,15 @@ dotnet list ERPFlow.slnx package --vulnerable --include-transitive
 
 The automated suite covers workflow/API behavior and development-seed counts, consistency, preservation, idempotency, environment gating, and demo-user permissions. Integration tests create isolated SQL Server databases, apply real migrations, exercise the workflow or HTTP API, and remove the databases afterward.
 
-## 14. Scope And Trade-Offs
+## 15. Scope And Trade-Offs
 
-ERPFlow is a backend portfolio MVP, not a production ERP suite. It deliberately favors explicit use-case code over generic repositories, mediator pipelines, or premature abstractions. Out of scope are a frontend, refresh-token lifecycle, user administration, observability infrastructure, deployment automation, and other ERP modules such as purchasing, invoicing, and accounting.
+ERPFlow is a portfolio MVP, not a production ERP suite. It deliberately favors explicit use-case code over generic repositories, mediator pipelines, or premature abstractions. Out of scope are a refresh-token lifecycle, user administration, observability infrastructure, deployment automation, and other ERP modules such as purchasing, invoicing, and accounting.
 
-Natural next steps would be permission-based authorization, refresh-token rotation, structured telemetry, richer query filters, containerized infrastructure, CI, and a client application.
+Natural next steps would be permission-based authorization, refresh-token rotation, structured telemetry, richer query filters, containerized infrastructure, and CI.
 
-## 15. Further Documentation
+## 16. Further Documentation
 
+- [`front/`](front) and section 12 describe the Angular client.
 - [`docs/FRONTEND_HANDOFF.md`](docs/FRONTEND_HANDOFF.md) defines frontend setup, Development CORS, exact wire models, permissions, and complete workflows.
 - [`docs/openapi/erpflow-v1.json`](docs/openapi/erpflow-v1.json) is the generated OpenAPI v1 snapshot, verified against the application's live document in integration tests.
 - [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) records completed phases, acceptance evidence, and future scope.
