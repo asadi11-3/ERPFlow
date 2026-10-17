@@ -13,6 +13,21 @@ using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddCors(options => options.AddPolicy("DevelopmentFrontend", policy =>
+    {
+        var origins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
+        if (origins.Length > 0)
+        {
+            policy.WithOrigins(origins);
+        }
+
+        policy.WithMethods("GET", "POST")
+            .WithHeaders("Authorization", "Content-Type");
+    }));
+}
+
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
@@ -95,6 +110,11 @@ var app = builder.Build();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseHttpsRedirection();
+app.UseRouting();
+if (app.Environment.IsDevelopment())
+{
+    app.UseCors("DevelopmentFrontend");
+}
 app.UseAuthentication();
 app.UseAuthorization();
 

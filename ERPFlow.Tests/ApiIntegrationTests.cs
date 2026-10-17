@@ -32,7 +32,7 @@ public sealed class ApiIntegrationTests : IAsyncLifetime
         factory = new ApiFactory(CreateConnectionString(databaseName));
         client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
-            BaseAddress = new Uri("https://localhost")
+            BaseAddress = new Uri("https://localhost:7165")
         });
 
         await using var scope = factory.Services.CreateAsyncScope();
@@ -67,6 +67,68 @@ public sealed class ApiIntegrationTests : IAsyncLifetime
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
         Assert.Equal(StatusCodes.Status401Unauthorized, problem?.Status);
+    }
+
+    [Theory]
+    [InlineData("http://localhost:4200")]
+    [InlineData("http://localhost:5173")]
+    public async Task AllowedOriginPreflightSupportsBearerHeadersWithoutCredentials(string origin)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Options, "/api/sales-orders");
+        request.Headers.Add("Origin", origin);
+        request.Headers.Add("Access-Control-Request-Method", "POST");
+        request.Headers.Add("Access-Control-Request-Headers", "authorization,content-type");
+        var response = await client.SendAsync(request);
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(origin, Assert.Single(response.Headers.GetValues("Access-Control-Allow-Origin")));
+        var headers = string.Join(",", response.Headers.GetValues("Access-Control-Allow-Headers"));
+        Assert.Contains("authorization", headers, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("content-type", headers, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("POST", string.Join(",", response.Headers.GetValues("Access-Control-Allow-Methods")));
+        Assert.False(response.Headers.Contains("Access-Control-Allow-Credentials"));
+    }
+
+    [Fact]
+    public async Task DisallowedOriginPreflightDoesNotGrantBrowserAccess()
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Options, "/api/sales-orders");
+        request.Headers.Add("Origin", "https://untrusted.example");
+        request.Headers.Add("Access-Control-Request-Method", "GET");
+        var response = await client.SendAsync(request);
+        Assert.False(response.Headers.Contains("Access-Control-Allow-Origin"));
+        Assert.False(response.Headers.Contains("Access-Control-Allow-Credentials"));
+    }
+
+    [Fact]
+    public async Task CorsDoesNotBypassJwtOrRoleAuthorization()
+    {
+        client.DefaultRequestHeaders.Add("Origin", "http://localhost:4200");
+        var anonymous = await client.GetAsync("/api/sales-orders");
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+        Assert.Equal("http://localhost:4200", Assert.Single(anonymous.Headers.GetValues("Access-Control-Allow-Origin")));
+        SetToken("invalid-token");
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/sales-orders")).StatusCode);
+        SetToken(await LoginAsync("sales@erpflow.local"));
+        var authorized = await client.GetAsync("/api/sales-orders");
+        Assert.Equal(HttpStatusCode.OK, authorized.StatusCode);
+        Assert.False(authorized.Headers.Contains("Access-Control-Allow-Credentials"));
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/sales-orders/pending")).StatusCode);
+    }
+
+    [Fact]
+    public async Task ProductionDoesNotEnableDevelopmentCorsEvenWithConfiguredOrigins()
+    {
+        await using var production = new ApiFactory(CreateConnectionString(databaseName), "Production");
+        using var productionClient = production.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost:7165")
+        });
+        using var request = new HttpRequestMessage(HttpMethod.Options, "/api/sales-orders");
+        request.Headers.Add("Origin", "http://localhost:4200");
+        request.Headers.Add("Access-Control-Request-Method", "GET");
+        var response = await productionClient.SendAsync(request);
+        Assert.False(response.Headers.Contains("Access-Control-Allow-Origin"));
+        Assert.False(response.Headers.Contains("Access-Control-Allow-Credentials"));
     }
 
     [Fact]
@@ -303,6 +365,39 @@ public sealed class ApiIntegrationTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, swaggerResponse.StatusCode);
         Assert.Equal("text/html", swaggerResponse.Content.Headers.ContentType?.MediaType);
         using var openApi = JsonDocument.Parse(await openApiResponse.Content.ReadAsStreamAsync());
+        var exportPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../docs/openapi/erpflow-v1.json"));
+        if (Environment.GetEnvironmentVariable("ERPFLOW_EXPORT_OPENAPI") == "1")
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(exportPath)!);
+            await File.WriteAllTextAsync(exportPath, openApi.RootElement.GetRawText() + Environment.NewLine);
+        }
+        using var snapshot = JsonDocument.Parse(await File.ReadAllTextAsync(exportPath));
+        Assert.True(JsonElement.DeepEquals(snapshot.RootElement, openApi.RootElement), "Regenerate the OpenAPI snapshot after API contract changes.");
+        Assert.DoesNotContain(Password, openApi.RootElement.GetRawText());
+        Assert.DoesNotContain("integration-test-only-signing-key", openApi.RootElement.GetRawText());
+        var expectedOperations = new (string Path, string Method)[]
+        {
+            ("/api/auth/login", "post"),
+            ("/api/reference/customers", "get"),
+            ("/api/reference/products", "get"),
+            ("/api/sales-orders", "get"),
+            ("/api/sales-orders", "post"),
+            ("/api/sales-orders/{id}", "get"),
+            ("/api/sales-orders/{id}/history", "get"),
+            ("/api/sales-orders/{id}/submit", "post"),
+            ("/api/sales-orders/pending", "get"),
+            ("/api/sales-orders/{id}/approve", "post"),
+            ("/api/sales-orders/{id}/reject", "post")
+        };
+        foreach (var (path, method) in expectedOperations)
+        {
+            var operation = openApi.RootElement.GetProperty("paths").GetProperty(path).GetProperty(method);
+            if (path != "/api/auth/login")
+            {
+                Assert.Contains(operation.GetProperty("security").EnumerateArray(),
+                    requirement => requirement.TryGetProperty("Bearer", out _));
+            }
+        }
         var bearerScheme = openApi.RootElement
             .GetProperty("components")
             .GetProperty("securitySchemes")
@@ -432,11 +527,11 @@ public sealed class ApiIntegrationTests : IAsyncLifetime
         return new ERPFlowDbContext(options);
     }
 
-    private sealed class ApiFactory(string connectionString) : WebApplicationFactory<Program>
+    private sealed class ApiFactory(string connectionString, string environment = "Development") : WebApplicationFactory<Program>
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
-            builder.UseEnvironment("Development");
+            builder.UseEnvironment(environment);
             builder.ConfigureAppConfiguration((_, configuration) =>
                 configuration.AddInMemoryCollection(new Dictionary<string, string?>
                 {
@@ -445,7 +540,9 @@ public sealed class ApiIntegrationTests : IAsyncLifetime
                     ["Jwt:Audience"] = "ERPFlow.Api.Tests",
                     ["Jwt:SigningKey"] = "integration-test-only-signing-key-at-least-32-characters",
                     ["Jwt:ExpirationMinutes"] = "10",
-                    ["DemoUsers:Password"] = Password
+                    ["DemoUsers:Password"] = Password,
+                    ["Cors:AllowedOrigins:0"] = "http://localhost:4200",
+                    ["Cors:AllowedOrigins:1"] = "http://localhost:5173"
                 }));
         }
     }

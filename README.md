@@ -223,5 +223,7 @@ Natural next steps would be permission-based authorization, refresh-token rotati
 
 ## 15. Further Documentation
 
+- [`docs/FRONTEND_HANDOFF.md`](docs/FRONTEND_HANDOFF.md) defines frontend setup, Development CORS, exact wire models, permissions, and complete workflows.
+- [`docs/openapi/erpflow-v1.json`](docs/openapi/erpflow-v1.json) is the generated OpenAPI v1 snapshot, verified against the application's live document in integration tests.
 - [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) records completed phases, acceptance evidence, and future scope.
 - [`docs/phase4-integration.md`](docs/phase4-integration.md) provides complete local setup, Swagger usage, PowerShell requests, role checks, and troubleshooting.
