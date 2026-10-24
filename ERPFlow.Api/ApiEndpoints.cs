@@ -103,7 +103,8 @@ public static class ApiEndpoints
                 Guid id,
                 DispatchOrderCommand command,
                 IEquipmentWorkflow workflow,
-                CancellationToken ct) => workflow.DispatchOrderAsync(id, command, ct));
+                CancellationToken ct) => workflow.DispatchOrderAsync(id, command, ct))
+            .RequireAuthorization(ApiPolicies.Technician);
         equipment.MapGet("/delivery-notes", (
                 IEquipmentWorkflow workflow,
                 CancellationToken ct) => workflow.ListDeliveryNotesAsync(ct));

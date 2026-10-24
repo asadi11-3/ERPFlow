@@ -67,11 +67,18 @@ public sealed class Jobcard
 
     public int? FinalMeterReading { get; private set; }
 
+    public int Revision { get; private set; }
+
     public IReadOnlyList<JobcardItem> Items => _readOnlyItems;
 
     public void AddPart(Product product, int quantity)
     {
         ArgumentNullException.ThrowIfNull(product);
+        if (Status is not (JobcardStatus.Open or JobcardStatus.PartsRequested or JobcardStatus.InProgress))
+        {
+            throw new InvalidOperationException("Parts can only be requested for an active jobcard.");
+        }
+
         if (quantity <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(quantity), "Quantity must be greater than zero.");
@@ -87,21 +94,37 @@ public sealed class Jobcard
         {
             Status = JobcardStatus.PartsRequested;
         }
+
+        Revision++;
     }
 
     public void StartWork()
     {
-        if (Status is JobcardStatus.Open or JobcardStatus.PartsRequested)
+        if (Status is not (JobcardStatus.Open or JobcardStatus.PartsRequested))
         {
-            Status = JobcardStatus.InProgress;
+            throw new InvalidOperationException("Work can only start on an open jobcard or one with requested parts.");
         }
+
+        Status = JobcardStatus.InProgress;
+        Revision++;
     }
 
     public void Complete(string? notes, int? meterReading = null)
     {
+        if (Status is not (JobcardStatus.Open or JobcardStatus.PartsRequested or JobcardStatus.InProgress))
+        {
+            throw new InvalidOperationException("Only an active jobcard can be completed.");
+        }
+
+        if (meterReading < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(meterReading), "Meter reading cannot be negative.");
+        }
+
         Status = JobcardStatus.Completed;
         CompletedAt = DateTime.UtcNow;
         TechnicianNotes = notes?.Trim();
         FinalMeterReading = meterReading;
+        Revision++;
     }
 }

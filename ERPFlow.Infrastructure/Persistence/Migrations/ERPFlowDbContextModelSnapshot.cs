@@ -160,7 +160,8 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                     b.HasIndex("DeliveryNumber")
                         .IsUnique();
 
-                    b.HasIndex("SalesOrderId");
+                    b.HasIndex("SalesOrderId")
+                        .IsUnique();
 
                     b.ToTable("DeliveryNotes", (string)null);
                 });
@@ -194,6 +195,10 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -267,6 +272,7 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         .HasColumnType("datetime2(7)");
 
                     b.Property<int>("MeterReading")
+                        .IsConcurrencyToken()
                         .HasColumnType("int");
 
                     b.Property<Guid>("ProductId")

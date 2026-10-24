@@ -34,6 +34,7 @@ public sealed class StockReservation
 
     public int Quantity { get; private set; }
 
+    /// <summary>Indicates that the reservation is closed, whether released or consumed.</summary>
     public bool IsReleased { get; private set; }
 
     public DateTime CreatedAt { get; private set; }
@@ -55,6 +56,25 @@ public sealed class StockReservation
         }
 
         product.ReleaseReservedQuantity(Quantity);
+        IsReleased = true;
+        ReleasedAt = DateTime.UtcNow;
+    }
+
+    public void Consume(Product product)
+    {
+        ArgumentNullException.ThrowIfNull(product);
+
+        if (product.Id != ProductId)
+        {
+            throw new InvalidOperationException("The reservation belongs to a different product.");
+        }
+
+        if (IsReleased)
+        {
+            throw new InvalidOperationException("The reservation has already been closed.");
+        }
+
+        product.ConsumeReservedQuantity(Quantity);
         IsReleased = true;
         ReleasedAt = DateTime.UtcNow;
     }

@@ -37,7 +37,7 @@ public sealed class DeliveryNoteConfiguration : IEntityTypeConfiguration<Deliver
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(d => d.DeliveryNumber).IsUnique();
-        builder.HasIndex(d => d.SalesOrderId);
+        builder.HasIndex(d => d.SalesOrderId).IsUnique();
         builder.HasIndex(d => d.CustomerId);
     }
 }

@@ -1,6 +1,8 @@
 using ERPFlow.Application.Abstractions;
+using ERPFlow.Application.Common;
 using ERPFlow.Domain.Entities;
 using ERPFlow.Domain.Enums;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
 namespace ERPFlow.Infrastructure.Persistence;
@@ -44,6 +46,11 @@ public sealed class EfServicePersistence(ERPFlowDbContext context) : IServicePer
         return await context.Customers.SingleOrDefaultAsync(c => c.Id == customerId, cancellationToken);
     }
 
+    public Task<AppUser?> FindAppUserAsync(Guid userId, CancellationToken cancellationToken = default) =>
+        context.AppUsers
+            .AsNoTracking()
+            .SingleOrDefaultAsync(user => user.Id == userId, cancellationToken);
+
     public async Task<MachineAsset?> FindMachineAssetAsync(Guid assetId, CancellationToken cancellationToken = default)
     {
         return await context.MachineAssets.SingleOrDefaultAsync(m => m.Id == assetId, cancellationToken);
@@ -65,6 +72,41 @@ public sealed class EfServicePersistence(ERPFlowDbContext context) : IServicePer
 
     public async Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        await context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            var entityNames = string.Join(", ", exception.Entries.Select(entry => entry.Metadata.ClrType.Name));
+            throw new ConcurrencyConflictException(
+                $"The service operation conflicted while saving: {entityNames}. Retry the operation.",
+                exception);
+        }
+        catch (DbUpdateException exception) when (FindSqlException(exception)?.Number is 2601 or 2627)
+        {
+            throw new WorkflowConflictException(
+                "The service operation conflicts with an existing record.",
+                exception);
+        }
+        catch (DbUpdateException exception) when (FindSqlException(exception)?.Number == 1205)
+        {
+            throw new ConcurrencyConflictException(
+                "The service operation conflicted with another transaction. Retry the operation.",
+                exception);
+        }
+    }
+
+    private static SqlException? FindSqlException(Exception exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is SqlException sqlException)
+            {
+                return sqlException;
+            }
+        }
+
+        return null;
     }
 }

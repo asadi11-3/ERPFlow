@@ -6,12 +6,18 @@ using ERPFlow.Domain.Enums;
 namespace ERPFlow.Application.Service;
 
 public sealed class ServiceWorkflow(
-    IServicePersistence persistence) : IServiceWorkflow
+    IServicePersistence persistence,
+    ICurrentUser currentUser) : IServiceWorkflow
 {
     public async Task<IReadOnlyList<JobcardResult>> ListJobcardsAsync(
         JobcardStatus? status = null,
         CancellationToken cancellationToken = default)
     {
+        if (status.HasValue && !Enum.IsDefined(status.Value))
+        {
+            throw new WorkflowValidationException("Status must be a defined JobcardStatus value.");
+        }
+
         var list = await persistence.ListJobcardsAsync(status, cancellationToken);
         return list.Select(ToResult).ToArray();
     }
@@ -20,6 +26,7 @@ public sealed class ServiceWorkflow(
         Guid id,
         CancellationToken cancellationToken = default)
     {
+        ValidateJobcardId(id);
         var jobcard = await persistence.GetJobcardAsync(id, false, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(Jobcard), id);
         return ToResult(jobcard);
@@ -29,27 +36,24 @@ public sealed class ServiceWorkflow(
         CreateJobcardCommand command,
         CancellationToken cancellationToken = default)
     {
-        if (command.CustomerId == Guid.Empty)
-        {
-            throw new WorkflowValidationException("Customer ID is required.");
-        }
-
-        if (string.IsNullOrWhiteSpace(command.ReportedFault))
-        {
-            throw new WorkflowValidationException("Reported fault is required.");
-        }
+        ValidateCreateCommand(command);
 
         await using var transaction = await persistence.BeginTransactionAsync(cancellationToken);
-        var customer = await persistence.FindCustomerAsync(command.CustomerId, cancellationToken)
+        await EnsureAuthorizedActorAsync(cancellationToken);
+        _ = await persistence.FindCustomerAsync(command.CustomerId, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(Customer), command.CustomerId);
 
-        if (command.MachineAssetId.HasValue && command.MachineAssetId.Value != Guid.Empty)
+        if (command.MachineAssetId.HasValue)
         {
             var asset = await persistence.FindMachineAssetAsync(command.MachineAssetId.Value, cancellationToken)
                 ?? throw new EntityNotFoundException(nameof(MachineAsset), command.MachineAssetId.Value);
+            if (asset.CustomerId != command.CustomerId)
+            {
+                throw new WorkflowConflictException("The machine asset does not belong to the selected customer.");
+            }
         }
 
-        var ticketNumber = $"SRV-{DateTime.UtcNow:yyMMdd}-{Guid.NewGuid().ToString()[..4].ToUpperInvariant()}";
+        var ticketNumber = $"SRV-{DateTime.UtcNow:yyMMdd}-{Guid.NewGuid():N}";
         var jobcard = new Jobcard(
             ticketNumber,
             command.CustomerId,
@@ -70,39 +74,55 @@ public sealed class ServiceWorkflow(
         RequestJobcardPartsCommand command,
         CancellationToken cancellationToken = default)
     {
-        if (command.Parts is null || command.Parts.Count == 0)
-        {
-            throw new WorkflowValidationException("At least one part is required.");
-        }
+        ValidateJobcardId(jobcardId);
+        ValidatePartsCommand(command);
 
         await using var transaction = await persistence.BeginTransactionAsync(cancellationToken);
+        await EnsureAuthorizedActorAsync(cancellationToken);
         var jobcard = await persistence.GetJobcardAsync(jobcardId, true, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(Jobcard), jobcardId);
 
+        if (jobcard.Status is not (JobcardStatus.Open or JobcardStatus.PartsRequested or JobcardStatus.InProgress))
+        {
+            throw new WorkflowConflictException("Parts can only be requested for an active jobcard.");
+        }
+
         var productIds = command.Parts.Select(p => p.ProductId).ToArray();
+        if (jobcard.Items.Any(item => productIds.Contains(item.ProductId)))
+        {
+            throw new WorkflowConflictException("A requested product already exists on this jobcard.");
+        }
+
         var products = await persistence.GetProductsAsync(productIds, cancellationToken);
+        var missingProductId = productIds.FirstOrDefault(id => products.All(product => product.Id != id));
+        if (missingProductId != Guid.Empty)
+        {
+            throw new EntityNotFoundException(nameof(Product), missingProductId);
+        }
+
         var productsById = products.ToDictionary(p => p.Id);
 
         foreach (var p in command.Parts)
         {
-            if (!productsById.TryGetValue(p.ProductId, out var product))
-            {
-                throw new EntityNotFoundException(nameof(Product), p.ProductId);
-            }
-
-            if (p.Quantity <= 0)
-            {
-                throw new WorkflowValidationException("Quantity must be positive.");
-            }
-
+            var product = productsById[p.ProductId];
             if (p.Quantity > product.AvailableStock)
             {
                 throw new WorkflowConflictException($"Insufficient stock for product '{product.Name}'. Available: {product.AvailableStock}.");
             }
+        }
 
-            // Reserve stock for the jobcard
-            product.Reserve(jobcard.Id, p.Quantity);
-            jobcard.AddPart(product, p.Quantity);
+        try
+        {
+            foreach (var part in command.Parts)
+            {
+                var product = productsById[part.ProductId];
+                product.ReserveQuantity(part.Quantity);
+                jobcard.AddPart(product, part.Quantity);
+            }
+        }
+        catch (InvalidOperationException exception)
+        {
+            throw new WorkflowConflictException(exception.Message, exception);
         }
 
         await persistence.SaveChangesAsync(cancellationToken);
@@ -116,22 +136,157 @@ public sealed class ServiceWorkflow(
         CompleteJobcardCommand command,
         CancellationToken cancellationToken = default)
     {
+        ValidateJobcardId(jobcardId);
+        ValidateCompleteCommand(command);
+
         await using var transaction = await persistence.BeginTransactionAsync(cancellationToken);
+        await EnsureAuthorizedActorAsync(cancellationToken);
         var jobcard = await persistence.GetJobcardAsync(jobcardId, true, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(Jobcard), jobcardId);
 
-        jobcard.Complete(command.TechnicianNotes, command.FinalMeterReading);
+        if (jobcard.Status is not (JobcardStatus.Open or JobcardStatus.PartsRequested or JobcardStatus.InProgress))
+        {
+            throw new WorkflowConflictException("Only an active jobcard can be completed.");
+        }
 
+        MachineAsset? asset = null;
         if (jobcard.MachineAssetId.HasValue && command.FinalMeterReading.HasValue)
         {
-            var asset = await persistence.FindMachineAssetAsync(jobcard.MachineAssetId.Value, cancellationToken);
-            asset?.UpdateMeterReading(command.FinalMeterReading.Value);
+            asset = await persistence.FindMachineAssetAsync(jobcard.MachineAssetId.Value, cancellationToken)
+                ?? throw new EntityNotFoundException(nameof(MachineAsset), jobcard.MachineAssetId.Value);
+            if (command.FinalMeterReading.Value < asset.MeterReading)
+            {
+                throw new WorkflowConflictException("Final meter reading cannot be lower than the asset's current meter reading.");
+            }
+        }
+
+        var productIds = jobcard.Items.Select(item => item.ProductId).ToArray();
+        var products = await persistence.GetProductsAsync(productIds, cancellationToken);
+        var productsById = products.ToDictionary(product => product.Id);
+        var missingProductId = productIds.FirstOrDefault(id => !productsById.ContainsKey(id));
+        if (missingProductId != Guid.Empty)
+        {
+            throw new EntityNotFoundException(nameof(Product), missingProductId);
+        }
+
+        foreach (var item in jobcard.Items)
+        {
+            var product = productsById[item.ProductId];
+            if (product.ReservedQuantity < item.Quantity || product.StockOnHand < item.Quantity)
+            {
+                throw new WorkflowConflictException($"Reserved stock for product '{product.Name}' is inconsistent with this jobcard.");
+            }
+        }
+
+        try
+        {
+            jobcard.Complete(command.TechnicianNotes, command.FinalMeterReading);
+            foreach (var item in jobcard.Items)
+            {
+                productsById[item.ProductId].ConsumeReservedQuantity(item.Quantity);
+            }
+        }
+        catch (InvalidOperationException exception)
+        {
+            throw new WorkflowConflictException(exception.Message, exception);
+        }
+
+        if (asset is not null)
+        {
+            asset.UpdateMeterReading(command.FinalMeterReading!.Value);
         }
 
         await persistence.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
         return ToResult(jobcard);
+    }
+
+    private async Task EnsureAuthorizedActorAsync(CancellationToken cancellationToken)
+    {
+        var actorId = currentUser.UserId;
+        var actor = actorId == Guid.Empty
+            ? null
+            : await persistence.FindAppUserAsync(actorId, cancellationToken);
+        if (actor is null)
+        {
+            throw new EntityNotFoundException(nameof(AppUser), actorId);
+        }
+
+        if (actor.Role is not (UserRole.Technician or UserRole.Administrator))
+        {
+            throw new WorkflowAuthorizationException("Only technicians and administrators can access service operations.");
+        }
+    }
+
+    private static void ValidateJobcardId(Guid jobcardId)
+    {
+        if (jobcardId == Guid.Empty)
+        {
+            throw new WorkflowValidationException("A jobcard ID is required.");
+        }
+    }
+
+    private static void ValidateCreateCommand(CreateJobcardCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (command.CustomerId == Guid.Empty)
+        {
+            throw new WorkflowValidationException("Customer ID is required.");
+        }
+
+        if (command.MachineAssetId == Guid.Empty)
+        {
+            throw new WorkflowValidationException("Machine asset ID cannot be empty.");
+        }
+
+        if (command.TechnicianName?.Length > 150)
+        {
+            throw new WorkflowValidationException("Technician name cannot exceed 150 characters.");
+        }
+
+        if (string.IsNullOrWhiteSpace(command.ReportedFault) || command.ReportedFault.Length > 1000)
+        {
+            throw new WorkflowValidationException("Reported fault is required and cannot exceed 1000 characters.");
+        }
+
+        if (!Enum.IsDefined(command.Priority))
+        {
+            throw new WorkflowValidationException("Priority must be a defined JobcardPriority value.");
+        }
+    }
+
+    private static void ValidatePartsCommand(RequestJobcardPartsCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (command.Parts is null || command.Parts.Count == 0)
+        {
+            throw new WorkflowValidationException("At least one part is required.");
+        }
+
+        if (command.Parts.Any(part => part is null || part.ProductId == Guid.Empty || part.Quantity <= 0))
+        {
+            throw new WorkflowValidationException("Every part must have a product ID and a positive quantity.");
+        }
+
+        if (command.Parts.Select(part => part.ProductId).Distinct().Count() != command.Parts.Count)
+        {
+            throw new WorkflowValidationException("A product can only appear once in a parts request.");
+        }
+    }
+
+    private static void ValidateCompleteCommand(CompleteJobcardCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (command.TechnicianNotes?.Length > 2000)
+        {
+            throw new WorkflowValidationException("Technician notes cannot exceed 2000 characters.");
+        }
+
+        if (command.FinalMeterReading < 0)
+        {
+            throw new WorkflowValidationException("Final meter reading cannot be negative.");
+        }
     }
 
     private static JobcardResult ToResult(Jobcard j) =>

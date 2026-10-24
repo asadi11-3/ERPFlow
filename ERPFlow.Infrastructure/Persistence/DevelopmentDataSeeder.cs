@@ -112,6 +112,23 @@ public sealed class DevelopmentDataSeeder(
             .GroupBy(reservation => reservation.ProductId)
             .Select(group => new { ProductId = group.Key, Quantity = group.Sum(reservation => reservation.Quantity) })
             .ToDictionaryAsync(total => total.ProductId, total => total.Quantity, cancellationToken);
+        var activeServiceReservedTotals = await context.JobcardItems
+            .Join(
+                context.Jobcards.Where(jobcard =>
+                    jobcard.Status == JobcardStatus.Open ||
+                    jobcard.Status == JobcardStatus.PartsRequested ||
+                    jobcard.Status == JobcardStatus.InProgress),
+                item => item.JobcardId,
+                jobcard => jobcard.Id,
+                (item, _) => item)
+            .GroupBy(item => item.ProductId)
+            .Select(group => new { ProductId = group.Key, Quantity = group.Sum(item => item.Quantity) })
+            .ToDictionaryAsync(total => total.ProductId, total => total.Quantity, cancellationToken);
+        foreach (var (productId, quantity) in activeServiceReservedTotals)
+        {
+            reservedTotals[productId] = reservedTotals.GetValueOrDefault(productId) + quantity;
+        }
+
         var inconsistentProducts = products.Where(product =>
                 product.ReservedQuantity != reservedTotals.GetValueOrDefault(product.Id))
             .Select(product => product.Id).ToHashSet();
@@ -157,6 +174,32 @@ public sealed class DevelopmentDataSeeder(
                 {
                     context.ApprovalHistories.Add(order.Approve(decisionActor.Id,
                         "Stock and customer account checked; approved for dispatch."));
+                    order.Dispatch(selected);
+
+                    var seedKey = id.ToString("N")[..12].ToUpperInvariant();
+                    context.DeliveryNotes.Add(new DeliveryNote(
+                        order.Id,
+                        order.CustomerId,
+                        $"DN-DEMO-{seedKey}",
+                        "Express Fleet Logistics",
+                        $"TRK-{seedKey}"));
+
+                    var assetIndex = 1;
+                    foreach (var item in order.Items)
+                    {
+                        for (var unit = 0; unit < item.Quantity; unit++)
+                        {
+                            context.MachineAssets.Add(new MachineAsset(
+                                $"TAG-{seedKey}-{assetIndex:D3}",
+                                $"SN-{seedKey}-{assetIndex:D3}",
+                                item.ProductId,
+                                order.CustomerId,
+                                order.Id,
+                                DateTime.UtcNow.AddMonths(12),
+                                1250 * assetIndex));
+                            assetIndex++;
+                        }
+                    }
                 }
                 else if (i >= 12)
                 {
@@ -175,38 +218,6 @@ public sealed class DevelopmentDataSeeder(
 
         await context.SaveChangesAsync(cancellationToken);
 
-        if (!await context.MachineAssets.AnyAsync(cancellationToken))
-        {
-            var approvedOrders = await context.SalesOrders.Include(o => o.Items).Where(o => o.Status == OrderStatus.Approved).ToListAsync(cancellationToken);
-            var tagIdx = 1;
-            foreach (var approvedOrder in approvedOrders)
-            {
-                var delivery = new DeliveryNote(
-                    approvedOrder.Id,
-                    approvedOrder.CustomerId,
-                    $"DN-202610-{tagIdx:D3}",
-                    "Express Fleet Logistics",
-                    $"TRK-{982310 + tagIdx}");
-                context.DeliveryNotes.Add(delivery);
-
-                foreach (var item in approvedOrder.Items)
-                {
-                    var asset = new MachineAsset(
-                        $"TAG-2026-{tagIdx:D3}",
-                        $"SN-PRN-{4000 + tagIdx}",
-                        item.ProductId,
-                        approvedOrder.CustomerId,
-                        approvedOrder.Id,
-                        DateTime.UtcNow.AddMonths(12),
-                        1250 * tagIdx);
-                    context.MachineAssets.Add(asset);
-                    tagIdx++;
-                }
-            }
-
-            await context.SaveChangesAsync(cancellationToken);
-        }
-
         if (!await context.Jobcards.AnyAsync(cancellationToken))
         {
             var firstAsset = await context.MachineAssets.FirstOrDefaultAsync(cancellationToken);
@@ -219,9 +230,13 @@ public sealed class DevelopmentDataSeeder(
                     "Tariq Al-Mansoor",
                     "Paper jam in roller feeder 2 and faint toner output across right margin.",
                     JobcardPriority.High);
-                var spareProduct = products.FirstOrDefault(p => p.Sku == "PRINT-200" || p.Sku == "SCAN-100");
+                var spareProduct = products.FirstOrDefault(product =>
+                    (product.Sku == "PRINT-200" || product.Sku == "SCAN-100") &&
+                    product.AvailableStock >= 1 &&
+                    !inconsistentProducts.Contains(product.Id));
                 if (spareProduct is not null)
                 {
+                    spareProduct.ReserveQuantity(1);
                     j1.AddPart(spareProduct, 1);
                 }
                 context.Jobcards.Add(j1);
@@ -233,7 +248,7 @@ public sealed class DevelopmentDataSeeder(
                     "Zaid Haddad",
                     "Quarterly Preventive Maintenance (PM) and firmware diagnostic inspection.",
                     JobcardPriority.Medium);
-                j2.Complete("Cleaned optical scanner, lubricated drive gears, recalibrated touch sensor. All diagnostics passed.", 2410);
+                j2.Complete("Cleaned optical scanner, lubricated drive gears, recalibrated touch sensor. All diagnostics passed.", firstAsset.MeterReading);
                 context.Jobcards.Add(j2);
 
                 await context.SaveChangesAsync(cancellationToken);

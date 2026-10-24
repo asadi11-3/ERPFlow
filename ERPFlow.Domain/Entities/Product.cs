@@ -47,6 +47,12 @@ public sealed class Product
             throw new ArgumentException("A sales order ID is required.", nameof(salesOrderId));
         }
 
+        ReserveQuantity(quantity);
+        return new StockReservation(salesOrderId, Id, quantity);
+    }
+
+    public void ReserveQuantity(int quantity)
+    {
         if (quantity <= 0)
         {
             throw new ArgumentOutOfRangeException(nameof(quantity), "Quantity must be greater than zero.");
@@ -58,7 +64,27 @@ public sealed class Product
         }
 
         ReservedQuantity += quantity;
-        return new StockReservation(salesOrderId, Id, quantity);
+    }
+
+    public void ConsumeReservedQuantity(int quantity)
+    {
+        if (quantity <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(quantity), "Quantity must be greater than zero.");
+        }
+
+        if (quantity > ReservedQuantity)
+        {
+            throw new InvalidOperationException("The product does not contain the reserved quantity.");
+        }
+
+        if (quantity > StockOnHand)
+        {
+            throw new InvalidOperationException("The product does not contain enough physical stock.");
+        }
+
+        StockOnHand -= quantity;
+        ReservedQuantity -= quantity;
     }
 
     public void SetStockOnHand(int quantity)

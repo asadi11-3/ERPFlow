@@ -155,6 +155,22 @@ public sealed class SalesOrder
         return history;
     }
 
+    public void Dispatch(IReadOnlyCollection<Product> products)
+    {
+        if (Status != OrderStatus.Approved)
+        {
+            throw new InvalidOperationException("Only approved orders can be dispatched.");
+        }
+
+        ArgumentNullException.ThrowIfNull(products);
+        var productsById = ValidateProductsForDispatch(products);
+
+        foreach (var reservation in _reservations)
+        {
+            reservation.Consume(productsById[reservation.ProductId]);
+        }
+    }
+
     private Dictionary<Guid, Product> ValidateProductsForReservation(IReadOnlyCollection<Product> products)
     {
         if (products.Count != _items.Count)
@@ -214,6 +230,45 @@ public sealed class SalesOrder
                 product.ReservedQuantity < reservation.Quantity)
             {
                 throw new InvalidOperationException("Each active order reservation must match a product with sufficient reserved stock.");
+            }
+        }
+
+        return productsById;
+    }
+
+    private Dictionary<Guid, Product> ValidateProductsForDispatch(IReadOnlyCollection<Product> products)
+    {
+        if (_items.Count == 0 || _reservations.Count != _items.Count || products.Count != _items.Count)
+        {
+            throw new InvalidOperationException("Every order item must have one matching active reservation and product.");
+        }
+
+        var productsById = new Dictionary<Guid, Product>();
+        foreach (var product in products)
+        {
+            if (product is null)
+            {
+                throw new ArgumentException("Product values are required.", nameof(products));
+            }
+
+            if (!productsById.TryAdd(product.Id, product))
+            {
+                throw new InvalidOperationException("Each order item must have one unique product.");
+            }
+        }
+
+        foreach (var item in _items)
+        {
+            var reservation = _reservations.SingleOrDefault(candidate => candidate.ProductId == item.ProductId);
+            if (reservation is null ||
+                reservation.SalesOrderId != Id ||
+                reservation.IsReleased ||
+                reservation.Quantity != item.Quantity ||
+                !productsById.TryGetValue(item.ProductId, out var product) ||
+                product.ReservedQuantity < reservation.Quantity ||
+                product.StockOnHand < reservation.Quantity)
+            {
+                throw new InvalidOperationException("Every order item must have one exact active reservation backed by physical stock.");
             }
         }
 

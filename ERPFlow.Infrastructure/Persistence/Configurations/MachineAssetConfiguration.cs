@@ -28,6 +28,7 @@ public sealed class MachineAssetConfiguration : IEntityTypeConfiguration<Machine
             .HasPrecision(7)
             .IsRequired();
         builder.Property(m => m.MeterReading)
+            .IsConcurrencyToken()
             .IsRequired();
 
         builder.HasOne<Product>()

@@ -23,6 +23,9 @@ public sealed class JobcardConfiguration : IEntityTypeConfiguration<Jobcard>
             .IsRequired();
         builder.Property(j => j.Priority).IsRequired();
         builder.Property(j => j.Status).IsRequired();
+        builder.Property(j => j.Revision)
+            .IsConcurrencyToken()
+            .IsRequired();
         builder.Property(j => j.CreatedAt)
             .HasPrecision(7)
             .IsRequired();

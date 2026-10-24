@@ -45,8 +45,12 @@ public sealed class DevelopmentDataSeederIntegrationTests : IAsyncLifetime
         Assert.Equal(20, await context.Products.CountAsync());
         Assert.Equal(30, await context.SalesOrderItems.CountAsync());
         Assert.Equal(23, await context.StockReservations.CountAsync());
-        Assert.Equal(17, await context.StockReservations.CountAsync(reservation => !reservation.IsReleased));
+        Assert.Equal(11, await context.StockReservations.CountAsync(reservation => !reservation.IsReleased));
         Assert.Equal(17, await context.ApprovalHistories.CountAsync());
+        Assert.Equal(3, await context.DeliveryNotes.CountAsync());
+        Assert.Equal(14, await context.MachineAssets.CountAsync());
+        Assert.Equal(2, await context.Jobcards.CountAsync());
+        Assert.Single(await context.JobcardItems.ToListAsync());
         var orders = await context.SalesOrders.Include(order => order.Items)
             .Include(order => order.Reservations).AsSplitQuery().ToListAsync();
         Assert.Equal(4, orders.Count(order => order.Status == OrderStatus.Draft));
@@ -79,26 +83,72 @@ public sealed class DevelopmentDataSeederIntegrationTests : IAsyncLifetime
                 Assert.True(history[0].CreatedAt <= history[1].CreatedAt);
                 Assert.False(string.IsNullOrWhiteSpace(history[1].Comments));
             }
-            Assert.All(order.Reservations, reservation =>
-                Assert.Equal(order.Status == OrderStatus.Rejected, reservation.IsReleased));
+            Assert.All(order.Reservations, reservation => Assert.Equal(
+                order.Status is OrderStatus.Approved or OrderStatus.Rejected,
+                reservation.IsReleased));
+            if (order.Status == OrderStatus.Approved)
+            {
+                Assert.Single(await context.DeliveryNotes.Where(note => note.SalesOrderId == order.Id).ToListAsync());
+                Assert.Equal(
+                    order.Items.Sum(item => item.Quantity),
+                    await context.MachineAssets.CountAsync(asset => asset.SalesOrderId == order.Id));
+            }
         }
-        foreach (var product in await context.Products.ToListAsync())
-        {
-            var total = await context.StockReservations.Where(reservation =>
-                    reservation.ProductId == product.Id && !reservation.IsReleased)
-                .SumAsync(reservation => reservation.Quantity);
-            Assert.Equal(total, product.ReservedQuantity);
-            Assert.InRange(total, 0, product.StockOnHand);
-        }
+        Assert.Equal(2898, await context.Products.SumAsync(product => product.StockOnHand));
+        Assert.Equal(28, await context.Products.SumAsync(product => product.ReservedQuantity));
+        await AssertReservationConsistencyAsync();
 
         var ids = orders.Select(order => order.Id).Order().ToArray();
         var hashes = users.Values.ToDictionary(user => user.Id, user => user.PasswordHash);
+        var productState = await context.Products.ToDictionaryAsync(
+            product => product.Id,
+            product => new { product.StockOnHand, product.ReservedQuantity });
         await Seeder().SeedAsync("Development", "different-test-secret-must-not-replace-existing-hashes");
         Assert.Equal(ids, (await context.SalesOrders.Select(order => order.Id).ToArrayAsync()).Order().ToArray());
         Assert.Equal(30, await context.SalesOrderItems.CountAsync());
         Assert.Equal(23, await context.StockReservations.CountAsync());
         Assert.Equal(17, await context.ApprovalHistories.CountAsync());
+        Assert.Equal(3, await context.DeliveryNotes.CountAsync());
+        Assert.Equal(14, await context.MachineAssets.CountAsync());
+        Assert.Equal(2, await context.Jobcards.CountAsync());
+        Assert.Single(await context.JobcardItems.ToListAsync());
+        Assert.Equal(productState, await context.Products.ToDictionaryAsync(
+            product => product.Id,
+            product => new { product.StockOnHand, product.ReservedQuantity }));
         Assert.All(await context.AppUsers.ToListAsync(), user => Assert.Equal(hashes[user.Id], user.PasswordHash));
+    }
+
+    [Fact]
+    public async Task RerunWithActiveServiceReservationStillCreatesMissingDemoOrdersAndPreservesConsistency()
+    {
+        var customer = new Customer("Service customer", "service-customer@example.test");
+        var product = new Product("Existing scanner", "SCAN-100", 349m, 25);
+        var jobcard = new Jobcard(
+            "SRV-EXISTING-001",
+            customer.Id,
+            null,
+            "Existing technician",
+            "Existing service reservation",
+            JobcardPriority.High);
+        product.ReserveQuantity(2);
+        jobcard.AddPart(product, 2);
+        context.AddRange(customer, product, jobcard);
+        await context.SaveChangesAsync();
+
+        await Seeder().SeedAsync("Development", Password);
+        await Seeder().SeedAsync("Development", Password);
+        context.ChangeTracker.Clear();
+
+        Assert.Equal(15, await context.SalesOrders.CountAsync());
+        Assert.Single(await context.Jobcards.ToListAsync());
+        Assert.Single(await context.JobcardItems.ToListAsync());
+        var preserved = await context.Products.SingleAsync(candidate => candidate.Id == product.Id);
+        Assert.Equal(25, preserved.StockOnHand);
+        Assert.Equal(2, preserved.ReservedQuantity);
+        Assert.Equal(11, await context.StockReservations.CountAsync(reservation => !reservation.IsReleased));
+        Assert.Equal(3, await context.DeliveryNotes.CountAsync());
+        Assert.Equal(14, await context.MachineAssets.CountAsync());
+        await AssertReservationConsistencyAsync();
     }
 
     [Fact]
@@ -110,7 +160,16 @@ public sealed class DevelopmentDataSeederIntegrationTests : IAsyncLifetime
         var user = new AppUser("User", "user@example.test", UserRole.Sales, "existing-hash");
         var order = new SalesOrder(customer.Id, user.Id);
         order.AddItem(product, 1);
-        context.AddRange(customer, product, user, order);
+        var businessCustomer = new Customer("Business customer", "business@example.test");
+        var businessProduct = new Product("Business machine", "BUSINESS-001", 500m, 5);
+        var administrator = new AppUser("Business admin", "business-admin@example.test", UserRole.Administrator, "admin-hash");
+        var approvedOrder = new SalesOrder(businessCustomer.Id, administrator.Id);
+        approvedOrder.AddItem(businessProduct, 1);
+        approvedOrder.Submit([businessProduct]);
+        approvedOrder.Approve(administrator.Id);
+        context.AddRange(
+            customer, product, user, order,
+            businessCustomer, businessProduct, administrator, approvedOrder);
         await context.SaveChangesAsync();
 
         await Seeder().SeedAsync("Development", Password);
@@ -122,6 +181,13 @@ public sealed class DevelopmentDataSeederIntegrationTests : IAsyncLifetime
         Assert.False((await context.Customers.SingleAsync(entity => entity.Id == customer.Id)).IsActive);
         Assert.Equal(OrderStatus.Draft, (await context.SalesOrders.SingleAsync(entity => entity.Id == order.Id)).Status);
         Assert.Equal("existing-hash", (await context.AppUsers.SingleAsync(entity => entity.Id == user.Id)).PasswordHash);
+        var preservedBusinessProduct = await context.Products.SingleAsync(entity => entity.Id == businessProduct.Id);
+        Assert.Equal(5, preservedBusinessProduct.StockOnHand);
+        Assert.Equal(1, preservedBusinessProduct.ReservedQuantity);
+        Assert.False((await context.StockReservations.SingleAsync(
+            reservation => reservation.SalesOrderId == approvedOrder.Id)).IsReleased);
+        Assert.Empty(await context.DeliveryNotes.Where(note => note.SalesOrderId == approvedOrder.Id).ToListAsync());
+        Assert.Empty(await context.MachineAssets.Where(asset => asset.SalesOrderId == approvedOrder.Id).ToListAsync());
     }
 
     [Theory]
@@ -136,6 +202,32 @@ public sealed class DevelopmentDataSeederIntegrationTests : IAsyncLifetime
         Assert.Equal(0, await context.Customers.CountAsync());
         Assert.Equal(0, await context.Products.CountAsync());
         Assert.Equal(0, await context.SalesOrders.CountAsync());
+    }
+
+    private async Task AssertReservationConsistencyAsync()
+    {
+        var activeStatuses = new[]
+        {
+            JobcardStatus.Open,
+            JobcardStatus.PartsRequested,
+            JobcardStatus.InProgress
+        };
+        foreach (var product in await context.Products.ToListAsync())
+        {
+            var salesTotal = await context.StockReservations.Where(reservation =>
+                    reservation.ProductId == product.Id && !reservation.IsReleased)
+                .SumAsync(reservation => reservation.Quantity);
+            var serviceTotal = await context.JobcardItems
+                .Join(
+                    context.Jobcards.Where(jobcard => activeStatuses.Contains(jobcard.Status)),
+                    item => item.JobcardId,
+                    jobcard => jobcard.Id,
+                    (item, _) => item)
+                .Where(item => item.ProductId == product.Id)
+                .SumAsync(item => item.Quantity);
+            Assert.Equal(salesTotal + serviceTotal, product.ReservedQuantity);
+            Assert.InRange(product.ReservedQuantity, 0, product.StockOnHand);
+        }
     }
 
     private DevelopmentDataSeeder Seeder() => new(context, NullLogger<DevelopmentDataSeeder>.Instance);
