@@ -479,6 +479,45 @@ a.btn {
   }
 }
 
+.table.dotted tbody td {
+  border-bottom-style: dotted;
+}
+
+.record-list {
+  margin: 0;
+
+  > div {
+    display: grid;
+    grid-template-columns: minmax(120px, 1fr) minmax(0, 2fr);
+    gap: 16px;
+    padding: 14px 0;
+    border-bottom: 1px dotted var(--line);
+
+    &:last-child {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
+  }
+
+  dt {
+    color: var(--muted);
+    font-size: 0.875rem;
+  }
+
+  dd {
+    margin: 0;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+
+  @media (max-width: 640px) {
+    > div {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 4px;
+    }
+  }
+}
+
 /* Long names are clipped with an ellipsis; the full text lives in a title attribute. */
 .clip {
   display: block;
@@ -586,6 +625,26 @@ a.btn {
 @container (max-width: 940px) {
   .table-wrap.wide > .table {
     @include stacked;
+  }
+}
+
+@container (max-width: 940px) {
+  .table-wrap.wide > .table.dotted tr {
+    border-bottom-style: dotted;
+  }
+
+  .table-wrap.wide > .table.dotted td {
+    border: 0;
+  }
+}
+
+@container (max-width: 640px) {
+  .table-wrap > .table.dotted tr {
+    border-bottom-style: dotted;
+  }
+
+  .table-wrap > .table.dotted td {
+    border: 0;
   }
 }
 

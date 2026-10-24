@@ -99,6 +99,11 @@ public sealed class SalesOrderWorkflow(
         var actor = await GetActorAsync(cancellationToken);
         EnsureRole(actor, UserRole.Approver, UserRole.Administrator);
 
+        if (order.TotalAmount > 10000m && actor.Role != UserRole.Administrator)
+        {
+            throw new WorkflowAuthorizationException("Orders exceeding $10,000 require Administrator approval.");
+        }
+
         ApprovalHistory history;
         try
         {
@@ -137,6 +142,40 @@ public sealed class SalesOrderWorkflow(
         try
         {
             history = order.Reject(actor.Id, products, reason);
+        }
+        catch (InvalidOperationException exception)
+        {
+            throw new WorkflowConflictException(exception.Message, exception);
+        }
+
+        persistence.AddApprovalHistory(history);
+        await persistence.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return ToResult(order);
+    }
+
+    public async Task<SalesOrderResult> ReturnAsync(
+        Guid orderId,
+        string reason,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new WorkflowValidationException("A reason is required when returning an order for correction.");
+        }
+
+        await using var transaction = await persistence.BeginTransactionAsync(cancellationToken);
+        var order = await GetTrackedOrderAsync(orderId, cancellationToken);
+        var actor = await GetActorAsync(cancellationToken);
+        EnsureRole(actor, UserRole.Approver, UserRole.Administrator);
+        var products = await persistence.GetProductsAsync(
+            order.Reservations.Select(reservation => reservation.ProductId).ToArray(),
+            cancellationToken);
+
+        ApprovalHistory history;
+        try
+        {
+            history = order.ReturnForCorrection(actor.Id, products, reason);
         }
         catch (InvalidOperationException exception)
         {

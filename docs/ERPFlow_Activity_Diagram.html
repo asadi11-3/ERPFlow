@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ERPFlow - Enterprise Operations Activity Diagram</title>
+  <style>
+    @page {
+      size: A4 landscape;
+      margin: 10mm;
+    }
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: #0f172a;
+      background: #ffffff;
+      line-height: 1.4;
+      font-size: 11px;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .page {
+      width: 100%;
+      height: 100%;
+      page-break-after: always;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .page:last-child {
+      page-break-after: avoid;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #0284c7;
+      margin-bottom: 10px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .logo-badge {
+      background: #0284c7;
+      color: #ffffff;
+      font-weight: 800;
+      font-size: 13px;
+      padding: 4px 8px;
+      border-radius: 5px;
+      letter-spacing: 0.5px;
+    }
+    .title-group h1 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .title-group p {
+      font-size: 10px;
+      color: #64748b;
+    }
+    .meta-badge {
+      font-size: 9px;
+      font-weight: 600;
+      color: #0369a1;
+      background: #e0f2fe;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      border: 1px solid #bae6fd;
+    }
+
+    /* Diagram Canvas */
+    .diagram-container {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 8px;
+      box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
+    }
+    svg.activity-diagram {
+      width: 100%;
+      height: 480px;
+      display: block;
+    }
+
+    /* Swimlanes */
+    .lane-bg-0 { fill: #f0fdf4; stroke: #bbf7d0; stroke-width: 1; }
+    .lane-bg-1 { fill: #f0f9ff; stroke: #bae6fd; stroke-width: 1; }
+    .lane-bg-2 { fill: #fdf4ff; stroke: #f5d0fe; stroke-width: 1; }
+    .lane-bg-3 { fill: #fffbeb; stroke: #fde68a; stroke-width: 1; }
+
+    .lane-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .lane-label-0 { fill: #166534; }
+    .lane-label-1 { fill: #0369a1; }
+    .lane-label-2 { fill: #86198f; }
+    .lane-label-3 { fill: #92400e; }
+
+    .node-rect {
+      fill: #ffffff;
+      stroke-width: 1.5;
+      rx: 6;
+      filter: drop-shadow(0 1px 1px rgba(0,0,0,0.05));
+    }
+    .node-text-title {
+      font-size: 9.5px;
+      font-weight: 700;
+      fill: #0f172a;
+    }
+    .node-text-sub {
+      font-size: 8px;
+      fill: #64748b;
+    }
+    .decision-diamond {
+      fill: #ffffff;
+      stroke-width: 1.5;
+      filter: drop-shadow(0 1px 1px rgba(0,0,0,0.05));
+    }
+
+    /* Connectors */
+    .edge-line {
+      fill: none;
+      stroke-width: 1.5;
+      stroke-linejoin: round;
+    }
+    .edge-label-bg {
+      fill: #ffffff;
+      stroke: #cbd5e1;
+      stroke-width: 0.5;
+      rx: 3;
+    }
+    .edge-label-text {
+      font-size: 7.5px;
+      font-weight: 600;
+      fill: #334155;
+    }
+
+    /* Status Badges */
+    .badge-draft { fill: #64748b; }
+    .badge-pending { fill: #d97706; }
+    .badge-approved { fill: #16a34a; }
+    .badge-rejected { fill: #dc2626; }
+    .badge-returned { fill: #ea580c; }
+    .badge-dispatched { fill: #9333ea; }
+    .badge-service { fill: #0284c7; }
+
+    footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 6px;
+      margin-top: 8px;
+      font-size: 8.5px;
+      color: #94a3b8;
+    }
+
+    /* Page 2: Reference Details */
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 10px;
+    }
+    .card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 10px 12px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .card-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 6px;
+      padding-bottom: 4px;
+      border-bottom: 1.5px solid #f1f5f9;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    table.data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 8.5px;
+    }
+    table.data-table th {
+      background: #f8fafc;
+      color: #475569;
+      font-weight: 700;
+      text-align: left;
+      padding: 4px 6px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    table.data-table td {
+      padding: 4.5px 6px;
+      border-bottom: 1px solid #f1f5f9;
+      color: #1e293b;
+    }
+    table.data-table tr:last-child td {
+      border-bottom: none;
+    }
+    .pill {
+      display: inline-block;
+      font-size: 7.5px;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.2px;
+    }
+    .pill-green { background: #dcfce7; color: #15803d; }
+    .pill-blue { background: #e0f2fe; color: #0369a1; }
+    .pill-amber { background: #fef3c7; color: #b45309; }
+    .pill-purple { background: #f3e8ff; color: #7e22ce; }
+    .pill-rose { background: #ffe4e6; color: #be123c; }
+
+    .flow-step-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 8.5px;
+    }
+    .flow-step-item {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+    }
+    .step-num {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #0284c7;
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .step-text strong {
+      color: #0f172a;
+    }
+    .step-text p {
+      color: #475569;
+      margin-top: 1px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== PAGE 1: ACTIVITY DIAGRAM ==================== -->
+  <div class="page">
+    <header>
+      <div class="brand">
+        <div class="logo-badge">ERPFlow</div>
+        <div class="title-group">
+          <h1>End-to-End Enterprise Operations & Activity Flow</h1>
+          <p>Phase 5 Architecture: Commercial Order Governance, Warehouse Dispatch, Asset Registration & Field Service</p>
+        </div>
+      </div>
+      <div class="meta-badge">Activity Diagram & Lifecycle Model • System v1.5.0</div>
+    </header>
+
+    <div class="diagram-container">
+      <svg class="activity-diagram" viewBox="0 0 1020 480">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#64748b" />
+          </marker>
+          <marker id="arrow-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#16a34a" />
+          </marker>
+          <marker id="arrow-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#dc2626" />
+          </marker>
+          <marker id="arrow-amber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#d97706" />
+          </marker>
+          <marker id="arrow-purple" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#9333ea" />
+          </marker>
+        </defs>
+
+        <!-- SWIMLANE 1: Sales -->
+        <rect x="10" y="10" width="1000" height="110" rx="6" class="lane-bg-0" />
+        <text x="25" y="32" class="lane-label lane-label-0">SWIMLANE 1: COMMERCIAL SALES (Sales User / Administrator)</text>
+
+        <!-- SWIMLANE 2: Governance & Approvals -->
+        <rect x="10" y="125" width="1000" height="115" rx="6" class="lane-bg-1" />
+        <text x="25" y="147" class="lane-label lane-label-1">SWIMLANE 2: APPROVAL GOVERNANCE (Approver / Administrator)</text>
+
+        <!-- SWIMLANE 3: Warehouse & Fulfillment -->
+        <rect x="10" y="245" width="1000" height="110" rx="6" class="lane-bg-2" />
+        <text x="25" y="267" class="lane-label lane-label-2">SWIMLANE 3: FULFILLMENT & ASSET PROVISIONING (Operations / Admin)</text>
+
+        <!-- SWIMLANE 4: Field Service -->
+        <rect x="10" y="360" width="1000" height="110" rx="6" class="lane-bg-3" />
+        <text x="25" y="382" class="lane-label lane-label-3">SWIMLANE 4: FIELD SERVICE & MAINTENANCE (Field Technician / Admin)</text>
+
+        <!-- ================= NODES ================= -->
+
+        <!-- Start Node -->
+        <circle cx="50" cy="70" r="12" fill="#16a34a" stroke="#15803d" stroke-width="2" />
+        <circle cx="50" cy="70" r="6" fill="#ffffff" />
+
+        <!-- Node: Create Draft Order -->
+        <g transform="translate(90, 46)">
+          <rect width="115" height="48" class="node-rect" stroke="#16a34a" />
+          <text x="10" y="20" class="node-text-title">Create Sales Order</text>
+          <text x="10" y="34" class="node-text-sub">Select Customer & Items</text>
+          <text x="10" y="44" class="node-text-sub" fill="#16a34a">Status: [0] Draft</text>
+        </g>
+
+        <!-- Node: Submit for Approval -->
+        <g transform="translate(245, 46)">
+          <rect width="125" height="48" class="node-rect" stroke="#16a34a" />
+          <text x="10" y="20" class="node-text-title">Submit Order</text>
+          <text x="10" y="33" class="node-text-sub">Stock Check & Reserve</text>
+          <text x="10" y="44" class="node-text-sub" fill="#d97706">Status: [1] Pending</text>
+        </g>
+
+        <!-- Node: Value Threshold Check -->
+        <g transform="translate(267, 160)">
+          <polygon points="40,0 80,26 40,52 0,26" class="decision-diamond" stroke="#0284c7" />
+          <text x="40" y="24" text-anchor="middle" class="node-text-title" font-size="8.5">Order Value</text>
+          <text x="40" y="35" text-anchor="middle" class="node-text-title" font-size="8.5">&gt; $10,000 ?</text>
+        </g>
+
+        <!-- Node: Review Order -->
+        <g transform="translate(390, 162)">
+          <rect width="125" height="48" class="node-rect" stroke="#0284c7" />
+          <text x="10" y="19" class="node-text-title">Governance Review</text>
+          <text x="10" y="32" class="node-text-sub">Role Permission Enforced</text>
+          <text x="10" y="43" class="node-text-sub">Approver or Admin</text>
+        </g>
+
+        <!-- Decision: Decision Action -->
+        <g transform="translate(565, 160)">
+          <polygon points="45,0 90,26 45,52 0,26" class="decision-diamond" stroke="#0284c7" />
+          <text x="45" y="24" text-anchor="middle" class="node-text-title" font-size="8.5">Approval</text>
+          <text x="45" y="35" text-anchor="middle" class="node-text-title" font-size="8.5">Decision?</text>
+        </g>
+
+        <!-- Action: Return for Correction -->
+        <g transform="translate(425, 46)">
+          <rect width="130" height="48" class="node-rect" stroke="#ea580c" />
+          <text x="10" y="19" class="node-text-title" fill="#ea580c">Return for Correction</text>
+          <text x="10" y="32" class="node-text-sub">Release Stock Reservation</text>
+          <text x="10" y="43" class="node-text-sub" fill="#ea580c">Revert to: [0] Draft</text>
+        </g>
+
+        <!-- Action: Reject Order -->
+        <g transform="translate(710, 135)">
+          <rect width="115" height="42" class="node-rect" stroke="#dc2626" />
+          <text x="10" y="17" class="node-text-title" fill="#dc2626">Reject Order</text>
+          <text x="10" y="29" class="node-text-sub">Mandatory Reason</text>
+          <text x="10" y="38" class="node-text-sub" fill="#dc2626">Status: [3] Rejected</text>
+        </g>
+        <!-- End Rejected -->
+        <circle cx="865" cy="156" r="10" fill="#dc2626" stroke="#991b1b" stroke-width="2" />
+        <circle cx="865" cy="156" r="5" fill="#ffffff" />
+
+        <!-- Action: Approve Order -->
+        <g transform="translate(710, 192)">
+          <rect width="125" height="42" class="node-rect" stroke="#16a34a" />
+          <text x="10" y="17" class="node-text-title" fill="#16a34a">Approve Order</text>
+          <text x="10" y="29" class="node-text-sub">Keep Stock Reserved</text>
+          <text x="10" y="38" class="node-text-sub" fill="#16a34a">Status: [2] Approved</text>
+        </g>
+
+        <!-- Node: Dispatch & Deliver -->
+        <g transform="translate(705, 275)">
+          <rect width="135" height="48" class="node-rect" stroke="#9333ea" />
+          <text x="10" y="19" class="node-text-title" fill="#7e22ce">Dispatch Equipment</text>
+          <text x="10" y="32" class="node-text-sub">Generate Delivery Note</text>
+          <text x="10" y="43" class="node-text-sub">Stock: Qty -= N, Reserved -= N</text>
+        </g>
+
+        <!-- Node: Register Machine Assets -->
+        <g transform="translate(490, 275)">
+          <rect width="155" height="48" class="node-rect" stroke="#9333ea" />
+          <text x="10" y="19" class="node-text-title" fill="#7e22ce">Provision Machine Assets</text>
+          <text x="10" y="32" class="node-text-sub">Serial Number & Initial Meter</text>
+          <text x="10" y="43" class="node-text-sub">1-Year Warranty Date Set</text>
+        </g>
+
+        <!-- Node: Open Field Service Jobcard -->
+        <g transform="translate(245, 395)">
+          <rect width="145" height="48" class="node-rect" stroke="#d97706" />
+          <text x="10" y="19" class="node-text-title" fill="#b45309">Dispatch Jobcard</text>
+          <text x="10" y="32" class="node-text-sub">Assign Tech & Priority</text>
+          <text x="10" y="43" class="node-text-sub">Status: Open &rarr; InProgress</text>
+        </g>
+
+        <!-- Decision: Spare Parts Required? -->
+        <g transform="translate(440, 393)">
+          <polygon points="40,0 80,26 40,52 0,26" class="decision-diamond" stroke="#d97706" />
+          <text x="40" y="24" text-anchor="middle" class="node-text-title" font-size="8.5">Spare Parts</text>
+          <text x="40" y="35" text-anchor="middle" class="node-text-title" font-size="8.5">Required ?</text>
+        </g>
+
+        <!-- Node: Requisition Spare Parts -->
+        <g transform="translate(565, 395)">
+          <rect width="145" height="48" class="node-rect" stroke="#d97706" />
+          <text x="10" y="19" class="node-text-title" fill="#b45309">Consume Spare Parts</text>
+          <text x="10" y="32" class="node-text-sub">Validate & Deduct Stock</text>
+          <text x="10" y="43" class="node-text-sub">Add Jobcard Items</text>
+        </g>
+
+        <!-- Node: Complete & Update Meter -->
+        <g transform="translate(760, 395)">
+          <rect width="145" height="48" class="node-rect" stroke="#16a34a" />
+          <text x="10" y="19" class="node-text-title" fill="#15803d">Resolve & Complete</text>
+          <text x="10" y="32" class="node-text-sub">Update Machine Meter Reading</text>
+          <text x="10" y="43" class="node-text-sub" fill="#15803d">Status: Completed</text>
+        </g>
+
+        <!-- End Node Successful -->
+        <circle cx="950" cy="419" r="12" fill="#16a34a" stroke="#15803d" stroke-width="2" />
+        <circle cx="950" cy="419" r="6" fill="#ffffff" />
+        <circle cx="950" cy="419" r="3" fill="#15803d" />
+
+        <!-- ================= CONNECTORS ================= -->
+
+        <!-- Start -> Create -->
+        <path d="M 62 70 L 90 70" class="edge-line" stroke="#64748b" marker-end="url(#arrow)" />
+
+        <!-- Create -> Submit -->
+        <path d="M 205 70 L 245 70" class="edge-line" stroke="#16a34a" marker-end="url(#arrow-green)" />
+
+        <!-- Submit -> Threshold Diamond -->
+        <path d="M 307 94 L 307 160" class="edge-line" stroke="#64748b" marker-end="url(#arrow)" />
+
+        <!-- Threshold Diamond -> Review (Standard or Escalated) -->
+        <path d="M 347 186 L 390 186" class="edge-line" stroke="#0284c7" marker-end="url(#arrow)" />
+        <rect x="348" y="173" width="36" height="11" class="edge-label-bg" />
+        <text x="366" y="181" text-anchor="middle" class="edge-label-text">Route</text>
+
+        <!-- Review -> Approval Decision Diamond -->
+        <path d="M 515 186 L 565 186" class="edge-line" stroke="#0284c7" marker-end="url(#arrow)" />
+
+        <!-- Decision -> Return for Correction -->
+        <path d="M 610 160 L 610 70 L 555 70" class="edge-line" stroke="#ea580c" marker-end="url(#arrow-amber)" />
+        <rect x="580" y="105" width="46" height="11" class="edge-label-bg" />
+        <text x="603" y="113" text-anchor="middle" class="edge-label-text" fill="#ea580c">Return</text>
+
+        <!-- Return for Correction -> Edit / Re-Draft -->
+        <path d="M 425 70 L 370 70" class="edge-line" stroke="#ea580c" stroke-dasharray="3,3" marker-end="url(#arrow-amber)" />
+
+        <!-- Decision -> Reject -->
+        <path d="M 632 173 L 670 156 L 710 156" class="edge-line" stroke="#dc2626" marker-end="url(#arrow-red)" />
+        <rect x="646" y="154" width="34" height="11" class="edge-label-bg" />
+        <text x="663" y="162" text-anchor="middle" class="edge-label-text" fill="#dc2626">Reject</text>
+
+        <!-- Reject -> End Red -->
+        <path d="M 825 156 L 855 156" class="edge-line" stroke="#dc2626" marker-end="url(#arrow-red)" />
+
+        <!-- Decision -> Approve -->
+        <path d="M 632 199 L 670 213 L 710 213" class="edge-line" stroke="#16a34a" marker-end="url(#arrow-green)" />
+        <rect x="644" y="211" width="40" height="11" class="edge-label-bg" />
+        <text x="664" y="219" text-anchor="middle" class="edge-label-text" fill="#16a34a">Approve</text>
+
+        <!-- Approve -> Dispatch -->
+        <path d="M 772 234 L 772 275" class="edge-line" stroke="#9333ea" marker-end="url(#arrow-purple)" />
+
+        <!-- Dispatch -> Register Assets -->
+        <path d="M 705 299 L 645 299" class="edge-line" stroke="#9333ea" marker-end="url(#arrow-purple)" />
+
+        <!-- Register Assets -> Jobcard (Customer Service Call) -->
+        <path d="M 490 299 L 317 299 L 317 395" class="edge-line" stroke="#d97706" stroke-dasharray="4,3" marker-end="url(#arrow-amber)" />
+        <rect x="330" y="325" width="85" height="12" class="edge-label-bg" />
+        <text x="372" y="334" text-anchor="middle" class="edge-label-text">On-Demand Service</text>
+
+        <!-- Jobcard -> Spare Parts Decision -->
+        <path d="M 390 419 L 440 419" class="edge-line" stroke="#d97706" marker-end="url(#arrow-amber)" />
+
+        <!-- Decision -> Spare Parts (Yes) -->
+        <path d="M 520 419 L 565 419" class="edge-line" stroke="#d97706" marker-end="url(#arrow-amber)" />
+        <rect x="526" y="408" width="24" height="11" class="edge-label-bg" />
+        <text x="538" y="416" text-anchor="middle" class="edge-label-text">Yes</text>
+
+        <!-- Spare Parts -> Complete -->
+        <path d="M 710 419 L 760 419" class="edge-line" stroke="#16a34a" marker-end="url(#arrow-green)" />
+
+        <!-- Decision -> Complete (No Parts) -->
+        <path d="M 480 393 L 480 375 L 832 375 L 832 395" class="edge-line" stroke="#64748b" stroke-dasharray="3,3" marker-end="url(#arrow)" />
+        <rect x="625" y="369" width="46" height="11" class="edge-label-bg" />
+        <text x="648" y="377" text-anchor="middle" class="edge-label-text">No Parts</text>
+
+        <!-- Complete -> End Green -->
+        <path d="M 905 419 L 938 419" class="edge-line" stroke="#16a34a" marker-end="url(#arrow-green)" />
+      </svg>
+    </div>
+
+    <footer>
+      <span>ERPFlow Clean Architecture • Business Logic Specification & Workflow Verification</span>
+      <span>Confidential • Prepared for Client Technical Review</span>
+      <span>Page 1 of 2</span>
+    </footer>
+  </div>
+
+  <!-- ==================== PAGE 2: ARCHITECTURE & ROLE SPECS ==================== -->
+  <div class="page">
+    <header>
+      <div class="brand">
+        <div class="logo-badge">ERPFlow</div>
+        <div class="title-group">
+          <h1>Enterprise Governance Rules & System Architecture</h1>
+          <p>Role-Based Access Control, Inventory State Guarantees, Financial Policies & Service Specifications</p>
+        </div>
+      </div>
+      <div class="meta-badge">Technical Governance Guide</div>
+    </header>
+
+    <div class="grid-2">
+      <!-- Role-Based Access Matrix -->
+      <div class="card">
+        <div class="card-title">
+          <span>Role-Based Access Control (RBAC) Matrix</span>
+          <span class="pill pill-blue">4 System Roles</span>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Role</th>
+              <th>Allowed Actions</th>
+              <th>Scoped Data Visibility</th>
+              <th>Policy / Guard</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Sales</strong></td>
+              <td>Create draft orders, Submit for approval, Resubmit returned orders</td>
+              <td>Own sales orders only; active customers & products</td>
+              <td><span class="pill pill-green">SalesOnly</span></td>
+            </tr>
+            <tr>
+              <td><strong>Approver</strong></td>
+              <td>Approve orders (&le; $10k), Reject orders (with reason), Return for correction</td>
+              <td>All pending approval queues; order line items & history</td>
+              <td><span class="pill pill-amber">ApproverOnly</span></td>
+            </tr>
+            <tr>
+              <td><strong>Administrator</strong></td>
+              <td>All actions + High-value approvals (&gt; $10k), Equipment dispatch, Asset provisioning</td>
+              <td>Unrestricted company-wide visibility & system audit log</td>
+              <td><span class="pill pill-purple">AdminOnly</span></td>
+            </tr>
+            <tr>
+              <td><strong>Technician</strong></td>
+              <td>Accept jobcard, Request spare parts (deduct stock), Record meter & complete</td>
+              <td>Assigned field jobcards, customer machine assets & spare parts catalog</td>
+              <td><span class="pill pill-rose">TechPolicy</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Financial Governance Rules -->
+      <div class="card">
+        <div class="card-title">
+          <span>Financial Governance & Approval Thresholds</span>
+          <span class="pill pill-amber">Enforced at API & Domain</span>
+        </div>
+        <div class="flow-step-list">
+          <div class="flow-step-item">
+            <div class="step-num">1</div>
+            <div class="step-text">
+              <strong>High-Value Authorization Ceiling ($10,000 Rule):</strong>
+              <p>Standard <code>Approver</code> role can approve orders up to $10,000. Orders exceeding $10,000 require <code>Administrator</code> privileges; non-admin attempts are rejected with <code>403 Forbidden</code>.</p>
+            </div>
+          </div>
+          <div class="flow-step-item">
+            <div class="step-num">2</div>
+            <div class="step-text">
+              <strong>Mandatory Rejection Documentation:</strong>
+              <p>Rejecting an order strictly requires a non-blank audit reason. Empty rejection reasons fail client validation and are rejected with <code>400 Bad Request</code>.</p>
+            </div>
+          </div>
+          <div class="flow-step-item">
+            <div class="step-num">3</div>
+            <div class="step-text">
+              <strong>Return for Correction Loop:</strong>
+              <p>Approvers can return an order to <code>Draft</code> status with notes. All reserved warehouse stock is immediately released, allowing the sales representative to adjust quantities or pricing without deadlocks.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <!-- Inventory Lifecycle State Machine -->
+      <div class="card">
+        <div class="card-title">
+          <span>Physical Inventory & Reservation State Guarantees</span>
+          <span class="pill pill-purple">Double-Entry Ledger Integrity</span>
+        </div>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Lifecycle Stage</th>
+              <th>Physical Stock</th>
+              <th>Reserved Stock</th>
+              <th>Available Stock</th>
+              <th>Invariants</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Order Drafted</strong></td>
+              <td>Unchanged</td>
+              <td>Unchanged</td>
+              <td><code>Stock - Reserved</code></td>
+              <td>No allocation locks placed</td>
+            </tr>
+            <tr>
+              <td><strong>Order Submitted</strong></td>
+              <td>Unchanged</td>
+              <td><code>Reserved += Qty</code></td>
+              <td><code>Stock - Reserved</code></td>
+              <td>Throws <code>Conflict (409)</code> if <code>Qty > Available</code></td>
+            </tr>
+            <tr>
+              <td><strong>Order Returned / Rejected</strong></td>
+              <td>Unchanged</td>
+              <td><code>Reserved -= Qty</code></td>
+              <td>Restored</td>
+              <td>Clean reservation release, no orphaned locks</td>
+            </tr>
+            <tr>
+              <td><strong>Delivery Dispatched</strong></td>
+              <td><code>Stock -= Qty</code></td>
+              <td><code>Reserved -= Qty</code></td>
+              <td>Unchanged</td>
+              <td>Generates unique Serial Number & 1-Yr Warranty</td>
+            </tr>
+            <tr>
+              <td><strong>Service Spare Consumed</strong></td>
+              <td><code>Stock -= Qty</code></td>
+              <td>Unchanged</td>
+              <td><code>Stock - Reserved</code></td>
+              <td>Instant parts allocation onto technician jobcard</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Equipment Asset & Field Maintenance -->
+      <div class="card">
+        <div class="card-title">
+          <span>Post-Sale Machinery & Field Service Flow</span>
+          <span class="pill pill-green">Equipment Lifecycle</span>
+        </div>
+        <div class="flow-step-list">
+          <div class="flow-step-item">
+            <div class="step-num">&bull;</div>
+            <div class="step-text">
+              <strong>Automated Machine Provisioning:</strong>
+              <p>Dispatching an approved sales order generates a permanent <code>MachineAsset</code> with initial meter count, warranty expiration date (+1 year), and registered customer site.</p>
+            </div>
+          </div>
+          <div class="flow-step-item">
+            <div class="step-num">&bull;</div>
+            <div class="step-text">
+              <strong>Service Dispatch & Jobcards:</strong>
+              <p>Maintenance tasks (Preventive, Breakdown, Meter Audit) dispatch a <code>Jobcard</code> to an assigned field technician with real-time status tracking (<code>Open &rarr; InProgress &rarr; Completed</code>).</p>
+            </div>
+          </div>
+          <div class="flow-step-item">
+            <div class="step-num">&bull;</div>
+            <div class="step-text">
+              <strong>Spare Parts Requisition & Meter Telemetry:</strong>
+              <p>Technicians request spare parts directly into the jobcard (updating inventory in real time) and record latest machine odometer readings upon job closure.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <span>ERPFlow Clean Architecture • Business Logic Specification & Workflow Verification</span>
+      <span>Confidential • Prepared for Client Technical Review</span>
+      <span>Page 2 of 2</span>
+    </footer>
+  </div>
+
+</body>
+</html>

@@ -32,7 +32,7 @@ import { Pill } from '../../ui/pill/pill';
         <header class="page-head">
           <div>
             <h1>Approval Review</h1>
-            <p>Review the order details, then approve or reject this sales order.</p>
+            <p>Review the order details, then approve, reject, or return this sales order.</p>
           </div>
         </header>
 
@@ -42,6 +42,9 @@ import { Pill } from '../../ui/pill/pill';
               <h2>
                 Sales Order {{ no() }}
                 <app-pill [label]="status().label" [tone]="status().tone" />
+                @if (v.order.totalAmount > 10000) {
+                  <app-pill label="High Value" tone="amber" />
+                }
               </h2>
               <div class="tiles">
                 <div class="tile">
@@ -90,13 +93,19 @@ import { Pill } from '../../ui/pill/pill';
             @if (v.order.status === 1) {
               <div class="card">
                 <h2>Approval Decision</h2>
+                @if (v.order.totalAmount > 10000) {
+                  <div class="alert alert-warn" style="margin-bottom: 12px">
+                    <app-icon name="alert" />
+                    <p>Orders exceeding $10,000 require Administrator role approval.</p>
+                  </div>
+                }
                 <div class="field">
                   <label for="comments">Comments</label>
                   <textarea
                     id="comments"
                     rows="4"
                     maxlength="500"
-                    placeholder="Optional for approval, required for rejection"
+                    placeholder="Optional for approval, required for rejection / return"
                     [value]="comments()"
                     [disabled]="busy()"
                     (input)="comments.set($any($event.target).value)"
@@ -108,15 +117,18 @@ import { Pill } from '../../ui/pill/pill';
                     <p>{{ actionError() }}</p>
                   </div>
                 }
-                <div class="actions decide" style="margin-top: 14px">
+                <div class="actions decide" style="margin-top: 14px; display: flex; flex-wrap: wrap; gap: 8px">
                   <button type="button" class="btn btn-success" [disabled]="busy()" (click)="ask('approve')">Approve Order</button>
                   <button type="button" class="btn btn-danger" [disabled]="busy() || !comments().trim()" (click)="ask('reject')">
                     Reject Order
                   </button>
+                  <button type="button" class="btn btn-ghost" [disabled]="busy() || !comments().trim()" (click)="ask('return')">
+                    Return for Correction
+                  </button>
                 </div>
                 <div class="alert alert-warn" style="margin-top: 14px">
                   <app-icon name="alert" />
-                  <p>Rejecting this order releases all of its reserved stock back to inventory.</p>
+                  <p>Rejecting or returning releases all reserved warehouse stock.</p>
                 </div>
               </div>
             } @else {
@@ -144,14 +156,10 @@ import { Pill } from '../../ui/pill/pill';
 
     <app-confirm-dialog
       [(open)]="confirmOpen"
-      [heading]="kind() === 'approve' ? 'Approve order ' + no() + '?' : 'Reject order ' + no() + '?'"
-      [message]="
-        kind() === 'approve'
-          ? 'The order moves to Approved and its reserved stock stays allocated.'
-          : 'The order moves to Rejected and all of its reserved stock is released back to inventory.'
-      "
-      [confirmLabel]="kind() === 'approve' ? 'Approve' : 'Reject'"
-      [tone]="kind() === 'approve' ? 'success' : 'danger'"
+      [heading]="confirmHeading()"
+      [message]="confirmMessage()"
+      [confirmLabel]="confirmBtnLabel()"
+      [tone]="confirmTone()"
       [busy]="busy()"
       (confirmed)="confirm()"
     />
@@ -184,16 +192,50 @@ export class ApprovalReview {
     return { lines: active.length, quantity: active.reduce((sum, r) => sum + r.quantity, 0) };
   });
 
-  protected readonly kind = signal<'approve' | 'reject'>('approve');
+  protected readonly kind = signal<'approve' | 'reject' | 'return'>('approve');
   protected readonly confirmOpen = signal(false);
 
-  protected ask(kind: 'approve' | 'reject'): void {
+  protected readonly confirmHeading = computed(() => {
+    const k = this.kind();
+    if (k === 'approve') return `Approve order ${this.no()}?`;
+    if (k === 'reject') return `Reject order ${this.no()}?`;
+    return `Return order ${this.no()} for correction?`;
+  });
+
+  protected readonly confirmMessage = computed(() => {
+    const k = this.kind();
+    if (k === 'approve') return 'The order moves to Approved and its reserved stock stays allocated.';
+    if (k === 'reject') return 'The order moves to Rejected and all of its reserved stock is released back to inventory.';
+    return 'The order moves back to Draft status so the sales user can modify line items. Reserved stock is released.';
+  });
+
+  protected readonly confirmBtnLabel = computed(() => {
+    const k = this.kind();
+    if (k === 'approve') return 'Approve';
+    if (k === 'reject') return 'Reject';
+    return 'Return for Correction';
+  });
+
+  protected readonly confirmTone = computed(() => {
+    const k = this.kind();
+    if (k === 'approve') return 'success';
+    if (k === 'reject') return 'danger';
+    return 'amber';
+  });
+
+  protected ask(kind: 'approve' | 'reject' | 'return'): void {
     this.kind.set(kind);
     this.confirmOpen.set(true);
   }
 
   protected async confirm(): Promise<void> {
-    await (this.kind() === 'approve' ? this.approve() : this.reject());
+    if (this.kind() === 'approve') {
+      await this.approve();
+    } else if (this.kind() === 'reject') {
+      await this.reject();
+    } else {
+      await this.returnOrder();
+    }
     this.confirmOpen.set(false);
   }
 
@@ -204,6 +246,10 @@ export class ApprovalReview {
 
   protected reject(): Promise<void> {
     return this.decide(this.api.reject(this.id(), this.comments().trim()));
+  }
+
+  protected returnOrder(): Promise<void> {
+    return this.decide(this.api.returnOrder(this.id(), this.comments().trim()));
   }
 
   private async decide(call: Observable<unknown>): Promise<void> {

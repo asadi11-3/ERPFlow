@@ -1,14 +1,14 @@
-import { CurrencyPipe, DatePipe } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import { Component, computed, inject, input, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { firstValueFrom, forkJoin } from 'rxjs';
 
 import { Api } from '../../core/api/api';
 import { shortId, STATUS } from '../../core/api/models';
+import { PendingQueue } from '../../core/api/pending';
 import { problemMessage } from '../../core/api/problem';
 import { Reference } from '../../core/api/reference';
-import { PendingQueue } from '../../core/api/pending';
 import { Session } from '../../core/auth/session';
 import { OrderHistory } from '../../pattern/order-view/order-history';
 import { OrderItems } from '../../pattern/order-view/order-items';
@@ -22,7 +22,7 @@ type Tab = 'items' | 'reservations' | 'history';
 
 @Component({
   selector: 'app-order-detail',
-  imports: [CurrencyPipe, DatePipe, RouterLink, ConfirmDialog, Icon, Pill, OrderItems, OrderReservations, OrderHistory, OrderWorkflow],
+  imports: [DatePipe, RouterLink, ConfirmDialog, Icon, Pill, OrderItems, OrderReservations, OrderHistory, OrderWorkflow],
   template: `
     <section class="page">
       <a class="back" routerLink="/orders"><app-icon name="arrow-left" /> Sales Orders</a>
@@ -48,6 +48,11 @@ type Tab = 'items' | 'reservations' | 'history';
             @if (canReview()) {
               <a class="btn btn-primary" [routerLink]="['/approvals', v.order.id]">Review order</a>
             }
+            @if (canDispatch()) {
+              <button type="button" class="btn btn-primary" [disabled]="busy()" (click)="actionError.set(''); dispatchOpen.set(true)">
+                <app-icon name="assets" /> Dispatch & Register Assets
+              </button>
+            }
           </div>
         </header>
 
@@ -58,23 +63,24 @@ type Tab = 'items' | 'reservations' | 'history';
           </div>
         }
 
-        <div class="tiles">
-          <div class="tile">
-            <span>Customer</span><strong>{{ ref.customerName(v.order.customerId) }}</strong>
-          </div>
-          <div class="tile">
-            <span>Created by</span><strong>{{ creator() }}</strong>
-          </div>
-          <div class="tile">
-            <span>Total amount</span><strong>{{ v.order.totalAmount | currency }}</strong>
-          </div>
-          <div class="tile">
-            <span>Submitted at</span>
-            <strong>{{ v.order.submittedAt ? (v.order.submittedAt | date: 'd MMM y, h:mm a') : 'Not submitted' }}</strong>
-          </div>
-          <div class="tile">
-            <span>Decision date</span>
-            <strong>{{ v.order.decidedAt ? (v.order.decidedAt | date: 'd MMM y, h:mm a') : 'Pending' }}</strong>
+        <div class="card meta">
+          <div class="tiles">
+            <div class="tile">
+              <span>Customer</span>
+              <strong>{{ ref.customerName(v.order.customerId) }}</strong>
+            </div>
+            <div class="tile">
+              <span>Created by</span>
+              <strong>{{ creator() }}</strong>
+            </div>
+            <div class="tile">
+              <span>Submitted</span>
+              <strong>{{ v.order.submittedAt ? (v.order.submittedAt | date: 'd MMM y, h:mm a') : 'Not yet submitted' }}</strong>
+            </div>
+            <div class="tile">
+              <span>Decided</span>
+              <strong>{{ v.order.decidedAt ? (v.order.decidedAt | date: 'd MMM y, h:mm a') : 'Awaiting decision' }}</strong>
+            </div>
           </div>
         </div>
 
@@ -120,18 +126,49 @@ type Tab = 'items' | 'reservations' | 'history';
       }
     </section>
 
-    <app-confirm-dialog
-      [(open)]="confirmOpen"
-      [heading]="'Submit order ' + no() + ' for approval?'"
-      message="Stock is reserved for every line and the order enters the approval queue."
-      confirmLabel="Submit"
-      [busy]="busy()"
-      (confirmed)="submit()"
-    />
+    @if (canSubmit()) {
+      <app-confirm-dialog
+        [(open)]="confirmOpen"
+        [heading]="'Submit order ' + no() + ' for approval?'"
+        message="Stock is reserved for every line and the order enters the approval queue."
+        confirmLabel="Submit"
+        [busy]="busy()"
+        (confirmed)="submit()"
+      />
+    }
+    @if (canDispatch()) {
+      <app-confirm-dialog
+        [(open)]="dispatchOpen"
+        [heading]="'Dispatch order ' + no() + '?'"
+        message="Dispatch creates a delivery note and registers machines for the ordered items."
+        confirmLabel="Dispatch order"
+        [busy]="busy()"
+        (confirmed)="dispatch()"
+      >
+        <div class="dispatch-fields">
+          <div class="field">
+            <label for="dispatch-carrier">Carrier</label>
+            <input id="dispatch-carrier" required [value]="carrier()" [disabled]="busy()" (input)="carrier.set($any($event.target).value)" />
+          </div>
+          <div class="field">
+            <label for="dispatch-tracking">Tracking number (optional)</label>
+            <input id="dispatch-tracking" [value]="trackingNumber()" [disabled]="busy()" (input)="trackingNumber.set($any($event.target).value)" />
+          </div>
+          @if (actionError()) {
+            <div class="alert" role="alert"><app-icon name="alert" /><p>{{ actionError() }}</p></div>
+          }
+        </div>
+      </app-confirm-dialog>
+    }
+  `,
+  styles: `
+    .dispatch-fields { display: grid; gap: 16px; margin-top: 16px; }
+    .dispatch-fields .alert { margin: 0; }
   `,
 })
 export class OrderDetail {
   private readonly api = inject(Api);
+  private readonly router = inject(Router);
   private readonly session = inject(Session);
   private readonly pending = inject(PendingQueue);
   protected readonly ref = inject(Reference);
@@ -170,7 +207,15 @@ export class OrderDetail {
     return this.view()?.order.status === 1 && (role === 'Approver' || role === 'Administrator');
   });
 
+  protected readonly canDispatch = computed(() => {
+    const role = this.session.user()?.role;
+    return this.view()?.order.status === 2 && (role === 'Administrator' || role === 'Sales');
+  });
+
   protected readonly confirmOpen = signal(false);
+  protected readonly dispatchOpen = signal(false);
+  protected readonly carrier = signal('');
+  protected readonly trackingNumber = signal('');
 
   protected async submit(): Promise<void> {
     this.busy.set(true);
@@ -185,6 +230,25 @@ export class OrderDetail {
       this.busy.set(false);
       this.confirmOpen.set(false);
       this.data.reload();
+    }
+  }
+
+  protected async dispatch(): Promise<void> {
+    const carrier = this.carrier().trim();
+    if (!carrier) {
+      this.actionError.set('Enter a carrier before dispatching.');
+      return;
+    }
+    this.busy.set(true);
+    this.actionError.set('');
+    try {
+      await firstValueFrom(this.api.dispatchOrder(this.id(), carrier, this.trackingNumber().trim()));
+      this.dispatchOpen.set(false);
+      await this.router.navigate(['/assets']);
+    } catch (err) {
+      this.actionError.set(problemMessage(err));
+    } finally {
+      this.busy.set(false);
     }
   }
 }

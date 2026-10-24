@@ -40,7 +40,7 @@ public sealed class Product
 
     public byte[] RowVersion { get; private set; } = [];
 
-    internal StockReservation Reserve(Guid salesOrderId, int quantity)
+    public StockReservation Reserve(Guid salesOrderId, int quantity)
     {
         if (salesOrderId == Guid.Empty)
         {
@@ -76,7 +76,7 @@ public sealed class Product
         StockOnHand = quantity;
     }
 
-    internal void ReleaseReservedQuantity(int quantity)
+    public void ReleaseReservedQuantity(int quantity)
     {
         if (quantity <= 0)
         {

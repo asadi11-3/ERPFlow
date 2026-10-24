@@ -15,10 +15,12 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { label: 'Sales Orders', path: '/orders', icon: 'orders' },
+  { label: 'Sales Orders', path: '/orders', icon: 'orders', roles: ['Sales', 'Approver', 'Administrator'] },
   { label: 'Create Order', path: '/orders/new', icon: 'create', roles: ['Sales', 'Administrator'] },
-  { label: 'Customers & Products', path: '/reference', icon: 'reference' },
   { label: 'Pending Approvals', path: '/approvals', icon: 'approvals', roles: ['Approver', 'Administrator'] },
+  { label: 'Machine Assets', path: '/assets', icon: 'assets' },
+  { label: 'Service Jobcards', path: '/service', icon: 'service' },
+  { label: 'Customers & Products', path: '/reference', icon: 'reference' },
 ];
 
 @Component({

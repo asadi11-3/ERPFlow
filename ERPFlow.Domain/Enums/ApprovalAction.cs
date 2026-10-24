@@ -4,5 +4,6 @@ public enum ApprovalAction
 {
     Approved,
     Rejected,
-    Submitted
+    Submitted,
+    Returned
 }

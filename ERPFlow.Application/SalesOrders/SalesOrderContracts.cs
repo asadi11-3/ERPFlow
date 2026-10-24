@@ -72,6 +72,11 @@ public interface ISalesOrderWorkflow
         string reason,
         CancellationToken cancellationToken = default);
 
+    Task<SalesOrderResult> ReturnAsync(
+        Guid orderId,
+        string reason,
+        CancellationToken cancellationToken = default);
+
     Task<SalesOrderResult> GetByIdAsync(Guid orderId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<ApprovalHistoryResult>> GetApprovalHistoryAsync(

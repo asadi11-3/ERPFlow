@@ -67,6 +67,8 @@ builder.Services.AddAuthorization(options =>
         policy.RequireRole(UserRole.Sales.ToString(), UserRole.Administrator.ToString()));
     options.AddPolicy(ApiPolicies.Approver, policy =>
         policy.RequireRole(UserRole.Approver.ToString(), UserRole.Administrator.ToString()));
+    options.AddPolicy(ApiPolicies.Technician, policy =>
+        policy.RequireRole(UserRole.Technician.ToString(), UserRole.Administrator.ToString()));
 });
 builder.Services.AddOpenApi(options =>
 {

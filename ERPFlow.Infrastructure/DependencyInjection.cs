@@ -1,5 +1,7 @@
 using ERPFlow.Application.Abstractions;
+using ERPFlow.Application.Equipment;
 using ERPFlow.Application.SalesOrders;
+using ERPFlow.Application.Service;
 using ERPFlow.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,6 +20,10 @@ public static class DependencyInjection
         services.AddScoped<IUserDirectory, EfUserDirectory>();
         services.AddScoped<IReferenceDataQueries, EfReferenceDataQueries>();
         services.AddScoped<ISalesOrderWorkflow, SalesOrderWorkflow>();
+        services.AddScoped<IEquipmentPersistence, EfEquipmentPersistence>();
+        services.AddScoped<IEquipmentWorkflow, EquipmentWorkflow>();
+        services.AddScoped<IServicePersistence, EfServicePersistence>();
+        services.AddScoped<IServiceWorkflow, ServiceWorkflow>();
         services.AddScoped<DevelopmentDataSeeder>();
         return services;
     }

@@ -4,5 +4,6 @@ public enum UserRole
 {
     Administrator,
     Sales,
-    Approver
+    Approver,
+    Technician
 }

@@ -1,5 +1,7 @@
 using ERPFlow.Application.Abstractions;
+using ERPFlow.Application.Equipment;
 using ERPFlow.Application.SalesOrders;
+using ERPFlow.Application.Service;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ERPFlow.Api;
@@ -8,11 +10,14 @@ public static class ApiPolicies
 {
     public const string Sales = "Sales";
     public const string Approver = "Approver";
+    public const string Technician = "Technician";
 }
 
 public sealed record LoginRequest(string Email, string Password);
 
 public sealed record RejectOrderRequest(string Reason);
+
+public sealed record ReturnOrderRequest(string Reason);
 
 public sealed record ApproveOrderRequest(string? Comments);
 
@@ -86,6 +91,56 @@ public static class ApiEndpoints
                 ISalesOrderWorkflow workflow,
                 CancellationToken ct) => workflow.RejectAsync(id, request.Reason, ct))
             .RequireAuthorization(ApiPolicies.Approver);
+        orders.MapPost("/{id:guid}/return", (
+                Guid id,
+                ReturnOrderRequest request,
+                ISalesOrderWorkflow workflow,
+                CancellationToken ct) => workflow.ReturnAsync(id, request.Reason, ct))
+            .RequireAuthorization(ApiPolicies.Approver);
+
+        var equipment = api.MapGroup("/equipment").WithTags("Equipment & Delivery").RequireAuthorization();
+        equipment.MapPost("/sales-orders/{id:guid}/dispatch", (
+                Guid id,
+                DispatchOrderCommand command,
+                IEquipmentWorkflow workflow,
+                CancellationToken ct) => workflow.DispatchOrderAsync(id, command, ct));
+        equipment.MapGet("/delivery-notes", (
+                IEquipmentWorkflow workflow,
+                CancellationToken ct) => workflow.ListDeliveryNotesAsync(ct));
+        equipment.MapGet("/machine-assets", (
+                IEquipmentWorkflow workflow,
+                CancellationToken ct) => workflow.ListMachineAssetsAsync(ct));
+        equipment.MapGet("/machine-assets/{id:guid}", (
+                Guid id,
+                IEquipmentWorkflow workflow,
+                CancellationToken ct) => workflow.GetMachineAssetByIdAsync(id, ct));
+
+        var service = api.MapGroup("/service").WithTags("Service Operations").RequireAuthorization();
+        service.MapGet("/jobcards", (
+                IServiceWorkflow workflow,
+                CancellationToken ct,
+                ERPFlow.Domain.Enums.JobcardStatus? status = null) => workflow.ListJobcardsAsync(status, ct));
+        service.MapGet("/jobcards/{id:guid}", (
+                Guid id,
+                IServiceWorkflow workflow,
+                CancellationToken ct) => workflow.GetJobcardByIdAsync(id, ct));
+        service.MapPost("/jobcards", (
+                CreateJobcardCommand command,
+                IServiceWorkflow workflow,
+                CancellationToken ct) => workflow.CreateJobcardAsync(command, ct))
+            .RequireAuthorization(ApiPolicies.Technician);
+        service.MapPost("/jobcards/{id:guid}/request-parts", (
+                Guid id,
+                RequestJobcardPartsCommand command,
+                IServiceWorkflow workflow,
+                CancellationToken ct) => workflow.RequestPartsAsync(id, command, ct))
+            .RequireAuthorization(ApiPolicies.Technician);
+        service.MapPost("/jobcards/{id:guid}/complete", (
+                Guid id,
+                CompleteJobcardCommand command,
+                IServiceWorkflow workflow,
+                CancellationToken ct) => workflow.CompleteJobcardAsync(id, command, ct))
+            .RequireAuthorization(ApiPolicies.Technician);
 
         return endpoints;
     }

@@ -39,7 +39,7 @@ public sealed class DevelopmentDataSeederIntegrationTests : IAsyncLifetime
     {
         await Seeder().SeedAsync("Development", Password);
         context.ChangeTracker.Clear();
-        Assert.Equal(5, await context.AppUsers.CountAsync());
+        Assert.Equal(6, await context.AppUsers.CountAsync());
         Assert.Equal(10, await context.Customers.CountAsync());
         Assert.Equal(8, await context.Customers.CountAsync(customer => customer.IsActive));
         Assert.Equal(20, await context.Products.CountAsync());

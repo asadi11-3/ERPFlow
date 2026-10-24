@@ -30,7 +30,8 @@ public sealed class DevelopmentDataSeeder(
             ("Maya Haddad", "sales@erpflow.local", UserRole.Sales),
             ("Order Approver", "approver@erpflow.local", UserRole.Approver),
             ("Omar Nasser", "sales2@erpflow.local", UserRole.Sales),
-            ("Leila Mansour", "sales3@erpflow.local", UserRole.Sales)
+            ("Leila Mansour", "sales3@erpflow.local", UserRole.Sales),
+            ("Tariq Al-Mansoor", "tech@erpflow.local", UserRole.Technician)
         };
         foreach (var (name, email, role) in definitions)
         {
@@ -173,6 +174,72 @@ public sealed class DevelopmentDataSeeder(
         }
 
         await context.SaveChangesAsync(cancellationToken);
+
+        if (!await context.MachineAssets.AnyAsync(cancellationToken))
+        {
+            var approvedOrders = await context.SalesOrders.Include(o => o.Items).Where(o => o.Status == OrderStatus.Approved).ToListAsync(cancellationToken);
+            var tagIdx = 1;
+            foreach (var approvedOrder in approvedOrders)
+            {
+                var delivery = new DeliveryNote(
+                    approvedOrder.Id,
+                    approvedOrder.CustomerId,
+                    $"DN-202610-{tagIdx:D3}",
+                    "Express Fleet Logistics",
+                    $"TRK-{982310 + tagIdx}");
+                context.DeliveryNotes.Add(delivery);
+
+                foreach (var item in approvedOrder.Items)
+                {
+                    var asset = new MachineAsset(
+                        $"TAG-2026-{tagIdx:D3}",
+                        $"SN-PRN-{4000 + tagIdx}",
+                        item.ProductId,
+                        approvedOrder.CustomerId,
+                        approvedOrder.Id,
+                        DateTime.UtcNow.AddMonths(12),
+                        1250 * tagIdx);
+                    context.MachineAssets.Add(asset);
+                    tagIdx++;
+                }
+            }
+
+            await context.SaveChangesAsync(cancellationToken);
+        }
+
+        if (!await context.Jobcards.AnyAsync(cancellationToken))
+        {
+            var firstAsset = await context.MachineAssets.FirstOrDefaultAsync(cancellationToken);
+            if (firstAsset is not null)
+            {
+                var j1 = new Jobcard(
+                    "SRV-202610-001",
+                    firstAsset.CustomerId,
+                    firstAsset.Id,
+                    "Tariq Al-Mansoor",
+                    "Paper jam in roller feeder 2 and faint toner output across right margin.",
+                    JobcardPriority.High);
+                var spareProduct = products.FirstOrDefault(p => p.Sku == "PRINT-200" || p.Sku == "SCAN-100");
+                if (spareProduct is not null)
+                {
+                    j1.AddPart(spareProduct, 1);
+                }
+                context.Jobcards.Add(j1);
+
+                var j2 = new Jobcard(
+                    "SRV-202610-002",
+                    firstAsset.CustomerId,
+                    firstAsset.Id,
+                    "Zaid Haddad",
+                    "Quarterly Preventive Maintenance (PM) and firmware diagnostic inspection.",
+                    JobcardPriority.Medium);
+                j2.Complete("Cleaned optical scanner, lubricated drive gears, recalibrated touch sensor. All diagnostics passed.", 2410);
+                context.Jobcards.Add(j2);
+
+                await context.SaveChangesAsync(cancellationToken);
+            }
+        }
+
         await transaction.CommitAsync(cancellationToken);
     }
 }

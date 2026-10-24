@@ -44,6 +44,7 @@ public sealed class SalesOrder
     public DateTime? SubmittedAt { get; private set; }
 
     public DateTime? DecidedAt { get; private set; }
+
     public IReadOnlyList<SalesOrderItem> Items => _readOnlyItems;
 
     public IReadOnlyList<StockReservation> Reservations => _readOnlyReservations;
@@ -91,6 +92,7 @@ public sealed class SalesOrder
         }
 
         var productsById = ValidateProductsForReservation(products);
+        _reservations.Clear();
         foreach (var item in _items)
         {
             _reservations.Add(productsById[item.ProductId].Reserve(Id, item.Quantity));
@@ -129,6 +131,27 @@ public sealed class SalesOrder
         var history = new ApprovalHistory(Id, approverId, ApprovalAction.Rejected, comments);
         Status = OrderStatus.Rejected;
         DecidedAt = history.CreatedAt;
+        return history;
+    }
+
+    public ApprovalHistory ReturnForCorrection(
+        Guid approverId,
+        IReadOnlyCollection<Product> products,
+        string? comments = null)
+    {
+        EnsurePendingApproval();
+        ValidateUserId(approverId);
+        ArgumentNullException.ThrowIfNull(products);
+        var productsById = ValidateProductsForRelease(products);
+
+        foreach (var reservation in _reservations)
+        {
+            reservation.Release(productsById[reservation.ProductId]);
+        }
+
+        var history = new ApprovalHistory(Id, approverId, ApprovalAction.Returned, comments);
+        Status = OrderStatus.Draft;
+        DecidedAt = null;
         return history;
     }
 

@@ -19,6 +19,14 @@ public sealed class ERPFlowDbContext(DbContextOptions<ERPFlowDbContext> options)
 
     public DbSet<ApprovalHistory> ApprovalHistories => Set<ApprovalHistory>();
 
+    public DbSet<DeliveryNote> DeliveryNotes => Set<DeliveryNote>();
+
+    public DbSet<MachineAsset> MachineAssets => Set<MachineAsset>();
+
+    public DbSet<Jobcard> Jobcards => Set<Jobcard>();
+
+    public DbSet<JobcardItem> JobcardItems => Set<JobcardItem>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ERPFlowDbContext).Assembly);

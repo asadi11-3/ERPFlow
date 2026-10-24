@@ -25,10 +25,17 @@ export const routes: Routes = [
       {
         path: '',
         pathMatch: 'full',
-        redirectTo: () => (inject(Session).user()?.role === 'Approver' ? 'approvals' : 'orders'),
+        redirectTo: () => {
+          const role = inject(Session).user()?.role;
+          if (role === 'Approver') return 'approvals';
+          if (role === 'Technician') return 'service';
+          return 'orders';
+        },
       },
       { path: 'orders', loadChildren: () => import('./feature/orders/orders.routes') },
       { path: 'approvals', loadChildren: () => import('./feature/approvals/approvals.routes') },
+      { path: 'assets', loadChildren: () => import('./feature/assets/assets.routes') },
+      { path: 'service', loadChildren: () => import('./feature/service/service.routes') },
       { path: 'reference', loadChildren: () => import('./feature/reference/reference.routes') },
     ],
   },
