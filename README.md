@@ -130,6 +130,10 @@ The default client expects the API at `https://localhost:7165` and runs at `http
 
 ## Migrations And Existing Data
 
+### KDT Phase 1 foundation (dormant)
+
+The additive InventoryFoundation migration prepares Warehouse, WarehouseStock, explicit inventory reservation ownership, posting and movement tables. **Product balances remain authoritative.** No existing inventory workflow uses these tables and the registered posting gate refuses warehouse writes; there is no activation configuration flag. No live data backfill or cutover is included. See [the Phase 1 compatibility, transaction and cutover strategy](docs/inventory-foundation-phase1.md) before integrating later modules or deploying a cutover.
+
 Migrations add database constraints for workflow invariants, including a unique delivery-note `SalesOrderId`, unique jobcard product rows, row-version concurrency on products, and non-negative stock rules. Jobcards use a concurrency-checked `Revision` that advances on every parts request, work start, and completion, protecting completion from racing parts requests even for different products.
 
 If an existing database already contains duplicate delivery notes for one sales order, the uniqueness migration can fail. Review and reconcile those records manually before applying it. ERPFlow doesn't run automated destructive cleanup or choose which duplicate business record to delete.

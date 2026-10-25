@@ -2,7 +2,9 @@ using ERPFlow.Application.Abstractions;
 using ERPFlow.Application.Equipment;
 using ERPFlow.Application.SalesOrders;
 using ERPFlow.Application.Service;
+using ERPFlow.Application.Inventory;
 using ERPFlow.Infrastructure.Persistence;
+using ERPFlow.Infrastructure.Persistence.Inventory;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -25,6 +27,8 @@ public static class DependencyInjection
         services.AddScoped<IServicePersistence, EfServicePersistence>();
         services.AddScoped<IServiceWorkflow, ServiceWorkflow>();
         services.AddScoped<DevelopmentDataSeeder>();
+        services.AddSingleton<IInventoryWriteGate, ProductAuthorityWriteGate>();
+        services.AddScoped<IInventoryPosting, EfInventoryPosting>();
         return services;
     }
 }

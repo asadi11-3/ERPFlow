@@ -481,6 +481,254 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ERPFlow.Domain.Inventory.InventoryPosting", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)")
+                        .UseCollation("Latin1_General_100_BIN2");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("RequestHash")
+                        .IsRequired()
+                        .HasColumnType("binary(32)");
+
+                    b.Property<Guid?>("ReservationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReservationId");
+
+                    b.HasIndex("ActorId", "IdempotencyKey")
+                        .IsUnique();
+
+                    b.ToTable("InventoryPostings", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_InventoryPostings_Key", "LEN(LTRIM(RTRIM([IdempotencyKey]))) > 0");
+
+                            t.HasCheckConstraint("CK_InventoryPostings_Kind", "([Kind] = 0 AND [ReservationId] IS NULL) OR ([Kind] IN (1, 2, 3) AND [ReservationId] IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Inventory.InventoryReservation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("JobcardItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<Guid?>("SalesOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("WarehouseStockId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("JobcardItemId")
+                        .IsUnique()
+                        .HasFilter("[JobcardItemId] IS NOT NULL");
+
+                    b.HasIndex("SalesOrderId", "ProductId")
+                        .IsUnique()
+                        .HasFilter("[SalesOrderId] IS NOT NULL AND [Status] = 0");
+
+                    b.HasIndex("WarehouseStockId", "ProductId");
+
+                    b.HasIndex("WarehouseStockId", "Status");
+
+                    b.ToTable("InventoryReservations", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_InventoryReservations_Owner", "([SalesOrderId] IS NOT NULL AND [JobcardItemId] IS NULL) OR ([SalesOrderId] IS NULL AND [JobcardItemId] IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_InventoryReservations_Quantity", "[Quantity] > 0");
+
+                            t.HasCheckConstraint("CK_InventoryReservations_Status", "([Status] = 0 AND [ClosedAt] IS NULL) OR ([Status] IN (1, 2) AND [ClosedAt] IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Inventory.StockMovement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AfterOnHand")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AfterReserved")
+                        .HasColumnType("int");
+
+                    b.Property<int>("BeforeOnHand")
+                        .HasColumnType("int");
+
+                    b.Property<int>("BeforeReserved")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PhysicalDelta")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("PostingId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ReservedDelta")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("ResultRowVersion")
+                        .IsRequired()
+                        .HasColumnType("binary(8)");
+
+                    b.Property<long>("Sequence")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("WarehouseStockId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WarehouseStockId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_StockMovements_Opening")
+                        .HasFilter("[Kind] = 0");
+
+                    b.HasIndex("PostingId", "Kind");
+
+                    b.HasIndex("PostingId", "WarehouseStockId")
+                        .IsUnique();
+
+                    b.HasIndex("WarehouseStockId", "Sequence")
+                        .IsUnique();
+
+                    b.ToTable("StockMovements", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_StockMovements_Balances", "[BeforeOnHand] >= [BeforeReserved] AND [BeforeReserved] >= 0 AND [AfterOnHand] >= [AfterReserved] AND [AfterReserved] >= 0");
+
+                            t.HasCheckConstraint("CK_StockMovements_Deltas", "[AfterOnHand] - [BeforeOnHand] = [PhysicalDelta] AND [AfterReserved] - [BeforeReserved] = [ReservedDelta]");
+
+                            t.HasCheckConstraint("CK_StockMovements_Kind", "([Kind] = 0 AND [Sequence] = 1 AND [BeforeOnHand] = 0 AND [BeforeReserved] = 0 AND [PhysicalDelta] >= 0 AND [ReservedDelta] = 0) OR ([Kind] = 1 AND [PhysicalDelta] = 0 AND [ReservedDelta] > 0) OR ([Kind] = 2 AND [PhysicalDelta] = 0 AND [ReservedDelta] < 0) OR ([Kind] = 3 AND [PhysicalDelta] = [ReservedDelta] AND [PhysicalDelta] < 0)");
+
+                            t.HasCheckConstraint("CK_StockMovements_Sequence", "[Sequence] > 0");
+                        });
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Inventory.Warehouse", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("Warehouses", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Warehouses_Code", "LEN(LTRIM(RTRIM([Code]))) > 0");
+
+                            t.HasCheckConstraint("CK_Warehouses_Name", "LEN(LTRIM(RTRIM([Name]))) > 0");
+                        });
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Inventory.WarehouseStock", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ReservedQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<long>("Sequence")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("StockOnHand")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("WarehouseId", "ProductId")
+                        .IsUnique();
+
+                    b.ToTable("WarehouseStocks", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_WarehouseStocks_Balances", "[StockOnHand] >= 0 AND [ReservedQuantity] >= 0 AND [ReservedQuantity] <= [StockOnHand]");
+
+                            t.HasCheckConstraint("CK_WarehouseStocks_Sequence", "[Sequence] >= 0 AND ([Sequence] > 0 OR ([StockOnHand] = 0 AND [ReservedQuantity] = 0))");
+                        });
+                });
+
             modelBuilder.Entity("ERPFlow.Domain.Entities.ApprovalHistory", b =>
                 {
                     b.HasOne("ERPFlow.Domain.Entities.SalesOrder", null)
@@ -602,6 +850,71 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         .WithMany("Reservations")
                         .HasForeignKey("SalesOrderId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Inventory.InventoryPosting", b =>
+                {
+                    b.HasOne("ERPFlow.Domain.Entities.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERPFlow.Domain.Inventory.InventoryReservation", null)
+                        .WithMany()
+                        .HasForeignKey("ReservationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Inventory.InventoryReservation", b =>
+                {
+                    b.HasOne("ERPFlow.Domain.Entities.JobcardItem", null)
+                        .WithMany()
+                        .HasForeignKey("JobcardItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERPFlow.Domain.Entities.SalesOrder", null)
+                        .WithMany()
+                        .HasForeignKey("SalesOrderId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERPFlow.Domain.Inventory.WarehouseStock", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseStockId", "ProductId")
+                        .HasPrincipalKey("Id", "ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Inventory.StockMovement", b =>
+                {
+                    b.HasOne("ERPFlow.Domain.Inventory.WarehouseStock", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseStockId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERPFlow.Domain.Inventory.InventoryPosting", null)
+                        .WithMany()
+                        .HasForeignKey("PostingId", "Kind")
+                        .HasPrincipalKey("Id", "Kind")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Inventory.WarehouseStock", b =>
+                {
+                    b.HasOne("ERPFlow.Domain.Entities.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERPFlow.Domain.Inventory.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
