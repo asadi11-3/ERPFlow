@@ -232,6 +232,49 @@
             "Bearer": [ ]
           }
         ]
+      },
+      "put": {
+        "tags": [
+          "Sales Orders"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSalesOrderCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SalesOrderResult"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/api/sales-orders/{id}/history": {
@@ -1575,6 +1618,10 @@
             "items": {
               "$ref": "#/components/schemas/StockReservationResult"
             }
+          },
+          "rowVersion": {
+            "type": "string",
+            "format": "byte"
           }
         }
       },
@@ -1618,6 +1665,30 @@
               "string"
             ],
             "format": "date-time"
+          }
+        }
+      },
+      "UpdateSalesOrderCommand": {
+        "required": [
+          "customerId",
+          "items",
+          "rowVersion"
+        ],
+        "type": "object",
+        "properties": {
+          "customerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreateSalesOrderItem"
+            }
+          },
+          "rowVersion": {
+            "type": "string",
+            "format": "byte"
           }
         }
       }

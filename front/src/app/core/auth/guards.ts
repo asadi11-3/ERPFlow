@@ -11,7 +11,8 @@ export const authGuard: CanActivateFn = (_route, state) =>
 export const guestGuard: CanActivateFn = () => {
   const session = inject(Session);
   if (!session.isActive()) return true;
-  return inject(Router).createUrlTree([session.user()?.role === 'Approver' ? '/approvals' : '/orders']);
+  const role = session.user()?.role;
+  return inject(Router).createUrlTree([role === 'Approver' ? '/approvals' : role === 'Technician' ? '/service' : '/orders']);
 };
 
 export const roleGuard =

@@ -20,7 +20,7 @@ using Xunit;
 
 namespace ERPFlow.Tests;
 
-public sealed class ApiIntegrationTests : IAsyncLifetime
+public sealed partial class ApiIntegrationTests : IAsyncLifetime
 {
     private const string Password = "Integration-Test-Password-42!";
     private readonly string databaseName = $"ERPFlow_Phase4ApiTests_{Guid.NewGuid():N}";

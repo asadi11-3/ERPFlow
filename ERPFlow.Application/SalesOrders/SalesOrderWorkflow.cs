@@ -22,7 +22,7 @@ public sealed class SalesOrderWorkflow(
         }
 
         var actor = await GetActorAsync(cancellationToken);
-        EnsureRole(actor, UserRole.Sales, UserRole.Approver, UserRole.Administrator);
+        EnsureRole(actor, UserRole.Sales, UserRole.Approver, UserRole.Technician, UserRole.Administrator);
         return await persistence.ListOrdersAsync(
             actor.Role == UserRole.Sales ? actor.Id : null, page, pageSize, status, cancellationToken);
     }
@@ -55,6 +55,56 @@ public sealed class SalesOrderWorkflow(
         }
 
         persistence.AddOrder(order);
+        await persistence.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return ToResult(order);
+    }
+
+    public async Task<SalesOrderResult> UpdateDraftAsync(
+        Guid orderId,
+        UpdateSalesOrderCommand command,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        ValidateCreateCommand(new CreateSalesOrderCommand(command.CustomerId, command.Items));
+        if (command.RowVersion is not { Length: 8 })
+        {
+            throw new WorkflowValidationException("A valid order row version is required.");
+        }
+
+        await using var transaction = await persistence.BeginTransactionAsync(cancellationToken);
+        var actor = await GetActorAsync(cancellationToken);
+        EnsureRole(actor, UserRole.Sales, UserRole.Administrator);
+        var order = await GetTrackedOrderAsync(orderId, cancellationToken);
+        EnsureOwner(order, actor);
+        if (order.Status != OrderStatus.Draft || !order.RowVersion.SequenceEqual(command.RowVersion))
+        {
+            throw new WorkflowConflictException("The order is no longer the draft you loaded. Reload before editing.");
+        }
+
+        var customer = await persistence.FindCustomerAsync(command.CustomerId, cancellationToken)
+            ?? throw new EntityNotFoundException(nameof(Customer), command.CustomerId);
+        if (!customer.IsActive)
+        {
+            throw new WorkflowConflictException("Sales orders require an active customer.");
+        }
+
+        var productIds = command.Items.Select(item => item.ProductId).ToArray();
+        var products = await persistence.GetProductsAsync(productIds, cancellationToken);
+        EnsureAllProductsFound(productIds, products);
+        var productsById = products.ToDictionary(product => product.Id);
+        try
+        {
+            order.EditDraft(customer.Id, command.Items.Select(item =>
+                (productsById[item.ProductId], item.Quantity)).ToArray());
+        }
+        catch (InvalidOperationException exception)
+        {
+            throw new WorkflowConflictException(exception.Message, exception);
+        }
+
+        // Child-only edits must also update the parent to check and advance its row version.
+        persistence.MarkOrderUpdated(order);
         await persistence.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return ToResult(order);
@@ -94,6 +144,7 @@ public sealed class SalesOrderWorkflow(
         string? comments = null,
         CancellationToken cancellationToken = default)
     {
+        ValidateDecisionText(comments);
         await using var transaction = await persistence.BeginTransactionAsync(cancellationToken);
         var order = await GetTrackedOrderAsync(orderId, cancellationToken);
         var actor = await GetActorAsync(cancellationToken);
@@ -125,6 +176,7 @@ public sealed class SalesOrderWorkflow(
         string reason,
         CancellationToken cancellationToken = default)
     {
+        ValidateDecisionText(reason);
         if (string.IsNullOrWhiteSpace(reason))
         {
             throw new WorkflowValidationException("A rejection reason is required.");
@@ -159,6 +211,7 @@ public sealed class SalesOrderWorkflow(
         string reason,
         CancellationToken cancellationToken = default)
     {
+        ValidateDecisionText(reason);
         if (string.IsNullOrWhiteSpace(reason))
         {
             throw new WorkflowValidationException("A reason is required when returning an order for correction.");
@@ -270,6 +323,14 @@ public sealed class SalesOrderWorkflow(
         }
     }
 
+    private static void ValidateDecisionText(string? text)
+    {
+        if (text?.Trim().Length > 1000)
+        {
+            throw new WorkflowValidationException("Decision text cannot exceed 1000 characters.");
+        }
+    }
+
     private static void ValidateCreateCommand(CreateSalesOrderCommand command)
     {
         ArgumentNullException.ThrowIfNull(command);
@@ -286,7 +347,7 @@ public sealed class SalesOrderWorkflow(
         var productIds = new HashSet<Guid>();
         foreach (var item in command.Items)
         {
-            if (item.ProductId == Guid.Empty)
+            if (item is null || item.ProductId == Guid.Empty)
             {
                 throw new WorkflowValidationException("Every order item requires a product ID.");
             }
@@ -339,5 +400,6 @@ public sealed class SalesOrderWorkflow(
                 reservation.Quantity,
                 reservation.IsReleased,
                 reservation.CreatedAt,
-                reservation.ReleasedAt)).ToArray());
+                reservation.ReleasedAt)).ToArray())
+        { RowVersion = order.RowVersion };
 }

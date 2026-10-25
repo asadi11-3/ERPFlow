@@ -1,12 +1,13 @@
 import { CurrencyPipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
 import { Api } from '../../core/api/api';
 import { SalesOrder } from '../../core/api/models';
 import { problemMessage } from '../../core/api/problem';
 import { Reference } from '../../core/api/reference';
+import { Session } from '../../core/auth/session';
 import { ConfirmDialog } from '../../ui/confirm-dialog/confirm-dialog';
 import { Icon } from '../../ui/icon/icon';
 import { Select, SelectOption } from '../../ui/select/select';
@@ -25,7 +26,7 @@ interface Line {
       <a class="back" routerLink="/orders"><app-icon name="arrow-left" /> Sales Orders</a>
       <header class="page-head">
         <div>
-          <h1>Create Sales Order</h1>
+          <h1>{{ editId ? 'Edit Draft Order' : 'Create Sales Order' }}</h1>
           <p>Pick a customer and add products. Prices come from the product catalog.</p>
         </div>
       </header>
@@ -139,6 +140,9 @@ interface Line {
             <div class="alert" role="alert">
               <app-icon name="alert" />
               <p>{{ error() }}</p>
+              @if (editId) {
+                <button type="button" class="btn btn-ghost" [disabled]="busy() || loading()" (click)="loadDraft()">Reload draft</button>
+              }
             </div>
           }
 
@@ -165,8 +169,8 @@ interface Line {
 
     <app-confirm-dialog
       [(open)]="confirmOpen"
-      heading="Create and submit this order?"
-      message="The order is created, stock is reserved for every line, and it enters the approval queue."
+      [heading]="editId ? 'Save and resubmit this order?' : 'Create and submit this order?'"
+      message="The draft is saved, stock is reserved for every line, and it enters the approval queue."
       confirmLabel="Submit"
       [busy]="busy()"
       (confirmed)="confirmSubmit()"
@@ -189,6 +193,37 @@ export class OrderNew {
   protected readonly ref = inject(Reference);
   private readonly api = inject(Api);
   private readonly router = inject(Router);
+  private readonly session = inject(Session);
+  protected readonly editId: string | null = inject(ActivatedRoute).snapshot.paramMap.get('id');
+  protected readonly loading = signal(false);
+  private readonly editing = signal<SalesOrder | null>(null);
+
+  constructor() {
+    if (this.editId) void this.loadDraft();
+  }
+
+  protected async loadDraft(): Promise<void> {
+    if (!this.editId) return;
+    this.loading.set(true);
+    this.editing.set(null);
+    this.error.set('');
+    try {
+      const order = await firstValueFrom(this.api.order(this.editId));
+      const user = this.session.user();
+      if (order.status !== 0 || !user || (user.role !== 'Administrator' && order.createdByUserId !== user.id)) {
+        this.error.set('Only the owner or an administrator can edit a Draft order.');
+        return;
+      }
+      this.customerId.set(order.customerId);
+      this.lines.set(order.items.map((item, index) => ({ key: index + 1, productId: item.productId, quantity: item.quantity })));
+      this.nextKey = order.items.length + 1;
+      this.editing.set(order);
+    } catch (err) {
+      this.error.set(problemMessage(err));
+    } finally {
+      this.loading.set(false);
+    }
+  }
 
   private nextKey = 2;
 
@@ -198,13 +233,13 @@ export class OrderNew {
   protected readonly error = signal('');
   protected readonly draft = signal<SalesOrder | null>(null);
 
-  protected readonly locked = computed(() => this.busy() || this.draft() !== null);
+  protected readonly locked = computed(() => this.busy() || this.loading() || this.draft() !== null || (!!this.editId && !this.editing()));
   protected readonly filled = computed(() => this.lines().filter((l) => l.productId));
   protected readonly quantitiesOk = computed(() =>
     this.filled().every((l) => Number.isInteger(l.quantity) && l.quantity > 0),
   );
   protected readonly valid = computed(
-    () => !!this.customerId() && this.filled().length > 0 && this.quantitiesOk(),
+    () => !this.locked() && !!this.customerId() && this.filled().length > 0 && this.quantitiesOk(),
   );
   protected readonly total = computed(() => this.filled().reduce((sum, l) => sum + this.lineTotal(l), 0));
 
@@ -254,15 +289,15 @@ export class OrderNew {
   }
 
   protected async save(thenSubmit: boolean): Promise<void> {
+    if (!this.valid() || this.busy()) return;
     this.busy.set(true);
     this.error.set('');
     try {
-      const created = await firstValueFrom(
-        this.api.create(
-          this.customerId(),
-          this.filled().map((l) => ({ productId: l.productId, quantity: l.quantity })),
-        ),
-      );
+      const items = this.filled().map((l) => ({ productId: l.productId, quantity: l.quantity }));
+      const editing = this.editing();
+      const created = await firstValueFrom(editing
+        ? this.api.updateDraft(editing.id, this.customerId(), items, editing.rowVersion)
+        : this.api.create(this.customerId(), items));
       if (!thenSubmit) {
         await this.router.navigate(['/orders', created.id]);
         return;

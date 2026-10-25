@@ -12,7 +12,7 @@ using Xunit;
 
 namespace ERPFlow.Tests;
 
-public sealed class SalesOrderWorkflowIntegrationTests
+public sealed partial class SalesOrderWorkflowIntegrationTests
 {
     [Fact]
     public async Task WorkflowUsesServerPricesAndPersistsSubmissionAndApprovalAudits()

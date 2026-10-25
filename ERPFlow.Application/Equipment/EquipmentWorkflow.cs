@@ -9,6 +9,8 @@ public sealed class EquipmentWorkflow(
     IEquipmentPersistence persistence,
     ICurrentUser currentUser) : IEquipmentWorkflow
 {
+    public const int MaxDispatchUnits = 1000;
+
     public async Task<DeliveryNoteResult> DispatchOrderAsync(
         Guid salesOrderId,
         DispatchOrderCommand command,
@@ -29,6 +31,27 @@ public sealed class EquipmentWorkflow(
         var order = await persistence.GetOrderAsync(salesOrderId, cancellationToken)
             ?? throw new EntityNotFoundException(nameof(SalesOrder), salesOrderId);
 
+        if (order.Status != OrderStatus.Approved)
+        {
+            throw new WorkflowConflictException("Only approved orders can be dispatched.");
+        }
+
+        var totalUnits = 0;
+        foreach (var item in order.Items)
+        {
+            if (item.Quantity <= 0 || item.Quantity > MaxDispatchUnits - totalUnits)
+            {
+                throw new WorkflowValidationException($"A dispatch cannot exceed {MaxDispatchUnits} units.");
+            }
+
+            totalUnits = checked(totalUnits + item.Quantity);
+        }
+
+        if (command.SerialNumbers?.Count > MaxDispatchUnits)
+        {
+            throw new WorkflowValidationException($"A dispatch cannot exceed {MaxDispatchUnits} serial numbers.");
+        }
+
         var serials = BuildSerials(order, command.SerialNumbers);
         var products = await persistence.GetProductsAsync(
             order.Items.Select(item => item.ProductId).ToArray(),
@@ -48,7 +71,7 @@ public sealed class EquipmentWorkflow(
             order.Id,
             order.CustomerId,
             deliveryNumber,
-            command.Carrier,
+            command.Carrier ?? string.Empty,
             command.TrackingNumber);
 
         persistence.AddDeliveryNote(delivery);
