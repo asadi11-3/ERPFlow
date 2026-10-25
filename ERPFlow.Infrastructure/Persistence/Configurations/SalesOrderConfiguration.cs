@@ -39,6 +39,7 @@ public sealed class SalesOrderConfiguration : IEntityTypeConfiguration<SalesOrde
         builder.Navigation(order => order.Items)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
+        builder.Ignore(order => order.ReservationHistory);
         builder.HasMany(order => order.Reservations)
             .WithOne()
             .HasForeignKey(reservation => reservation.SalesOrderId)

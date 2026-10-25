@@ -29,6 +29,8 @@ public static class DependencyInjection
         services.AddScoped<DevelopmentDataSeeder>();
         services.AddSingleton<IInventoryWriteGate, ProductAuthorityWriteGate>();
         services.AddScoped<IInventoryPosting, EfInventoryPosting>();
+        services.AddScoped<IWarehouseSourcePolicy, ProductAuthorityWarehouseSourcePolicy>();
+        services.AddScoped<ILegacyInventoryImportPreparation, EfLegacyInventoryImportPreparation>();
         return services;
     }
 }

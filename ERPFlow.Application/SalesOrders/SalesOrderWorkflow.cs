@@ -1,5 +1,6 @@
 using ERPFlow.Application.Abstractions;
 using ERPFlow.Application.Common;
+using ERPFlow.Application.Inventory;
 using ERPFlow.Domain.Entities;
 using ERPFlow.Domain.Enums;
 
@@ -7,7 +8,8 @@ namespace ERPFlow.Application.SalesOrders;
 
 public sealed class SalesOrderWorkflow(
     ISalesOrderPersistence persistence,
-    ICurrentUser currentUser) : ISalesOrderWorkflow
+    ICurrentUser currentUser,
+    IWarehouseSourcePolicy warehouseSourcePolicy) : ISalesOrderWorkflow
 {
     public async Task<SalesOrderPage> ListAsync(
         int page,
@@ -51,7 +53,8 @@ public sealed class SalesOrderWorkflow(
         var order = new SalesOrder(customer.Id, actor.Id);
         foreach (var item in command.Items)
         {
-            order.AddItem(productsById[item.ProductId], item.Quantity);
+            var warehouseId = await warehouseSourcePolicy.ResolveAsync(item.WarehouseId, cancellationToken: cancellationToken);
+            order.AddItem(productsById[item.ProductId], item.Quantity, warehouseId);
         }
 
         persistence.AddOrder(order);
@@ -93,10 +96,22 @@ public sealed class SalesOrderWorkflow(
         var products = await persistence.GetProductsAsync(productIds, cancellationToken);
         EnsureAllProductsFound(productIds, products);
         var productsById = products.ToDictionary(product => product.Id);
+        var existingItems = order.Items.ToDictionary(item => item.ProductId);
+        var revisedLines = new List<(Product Product, int Quantity, Guid? WarehouseId)>();
+        foreach (var item in command.Items)
+        {
+            existingItems.TryGetValue(item.ProductId, out var existingItem);
+            var warehouseId = await warehouseSourcePolicy.ResolveAsync(
+                item.WarehouseId,
+                existingItem?.WarehouseId,
+                cancellationToken);
+            revisedLines.Add((productsById[item.ProductId], item.Quantity,
+                item.WarehouseId.HasValue || existingItem is null ? warehouseId : existingItem.WarehouseId));
+        }
+
         try
         {
-            order.EditDraft(customer.Id, command.Items.Select(item =>
-                (productsById[item.ProductId], item.Quantity)).ToArray());
+            order.EditDraft(customer.Id, revisedLines);
         }
         catch (InvalidOperationException exception)
         {
@@ -125,6 +140,12 @@ public sealed class SalesOrderWorkflow(
 
         try
         {
+            await ValidateReservationOriginsAsync(order, cancellationToken);
+            if (order.ReservationHistory.Any(reservation => reservation.IsReleased && !reservation.IsHistorical))
+            {
+                order.ArchiveClosedReservations();
+                await persistence.SaveChangesAsync(cancellationToken);
+            }
             order.Submit(products);
         }
         catch (InvalidOperationException exception)
@@ -193,6 +214,7 @@ public sealed class SalesOrderWorkflow(
         ApprovalHistory history;
         try
         {
+            await ValidateReservationOriginsAsync(order, cancellationToken);
             history = order.Reject(actor.Id, products, reason);
         }
         catch (InvalidOperationException exception)
@@ -228,6 +250,7 @@ public sealed class SalesOrderWorkflow(
         ApprovalHistory history;
         try
         {
+            await ValidateReservationOriginsAsync(order, cancellationToken);
             history = order.ReturnForCorrection(actor.Id, products, reason);
         }
         catch (InvalidOperationException exception)
@@ -393,13 +416,39 @@ public sealed class SalesOrderWorkflow(
                 item.ProductId,
                 item.Quantity,
                 item.UnitPrice,
-                item.LineTotal)).ToArray(),
+                item.LineTotal,
+                item.WarehouseId)).ToArray(),
             order.Reservations.Select(reservation => new StockReservationResult(
                 reservation.Id,
                 reservation.ProductId,
                 reservation.Quantity,
                 reservation.IsReleased,
                 reservation.CreatedAt,
-                reservation.ReleasedAt)).ToArray())
+                reservation.ReleasedAt,
+                reservation.WarehouseId)).ToArray())
         { RowVersion = order.RowVersion };
+
+    private async Task ValidateReservationOriginsAsync(SalesOrder order, CancellationToken cancellationToken)
+    {
+        var lines = order.Items.ToDictionary(item => item.ProductId);
+        foreach (var line in lines.Values)
+        {
+            await warehouseSourcePolicy.ResolveAsync(line.WarehouseId, cancellationToken: cancellationToken);
+        }
+
+        foreach (var reservation in order.Reservations.Where(reservation => !reservation.IsReleased))
+        {
+            if (!lines.TryGetValue(reservation.ProductId, out var line))
+            {
+                throw new WorkflowConflictException("Each reservation must match an order line.");
+            }
+
+            var lineWarehouseId = await warehouseSourcePolicy.ResolveAsync(line.WarehouseId, cancellationToken: cancellationToken);
+            var reservationWarehouseId = await warehouseSourcePolicy.ResolveAsync(reservation.WarehouseId, cancellationToken: cancellationToken);
+            if (lineWarehouseId != reservationWarehouseId)
+            {
+                throw new WorkflowConflictException("A reservation warehouse source must match its order line.");
+            }
+        }
+    }
 }

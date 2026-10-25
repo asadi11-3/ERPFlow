@@ -7,6 +7,7 @@ namespace ERPFlow.Infrastructure.Persistence;
 public sealed partial class ERPFlowDbContext
 {
     internal bool InventoryPostingInProgress { get; set; }
+    internal bool ImportPreparationInProgress { get; set; }
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -26,6 +27,14 @@ public sealed partial class ERPFlowDbContext
         foreach (var entry in ChangeTracker.Entries())
         {
             if (entry.State is EntityState.Unchanged or EntityState.Detached) continue;
+            if (entry.Entity is LegacyInventoryImportBatch or LegacyInventoryOpening or LegacyInventoryReservationImport)
+            {
+                if (entry.State != EntityState.Added || !ImportPreparationInProgress)
+                    throw new InvalidOperationException("Import preparation snapshots are immutable and require the preparation boundary.");
+                continue;
+            }
+            if (ImportPreparationInProgress)
+                throw new InvalidOperationException("Import preparation cannot write inventory or legacy business records.");
             if (entry.Entity is StockMovement or InventoryPosting && entry.State != EntityState.Added)
                 throw new InvalidOperationException("Inventory posting history is append-only.");
             if (entry.Entity is WarehouseStock && entry.State == EntityState.Deleted)

@@ -33,6 +33,9 @@ public sealed partial class ERPFlowDbContext(DbContextOptions<ERPFlowDbContext> 
     public DbSet<InventoryReservation> InventoryReservations => Set<InventoryReservation>();
     public DbSet<InventoryPosting> InventoryPostings => Set<InventoryPosting>();
     public DbSet<StockMovement> StockMovements => Set<StockMovement>();
+    public DbSet<LegacyInventoryImportBatch> LegacyInventoryImportBatches => Set<LegacyInventoryImportBatch>();
+    public DbSet<LegacyInventoryOpening> LegacyInventoryOpenings => Set<LegacyInventoryOpening>();
+    public DbSet<LegacyInventoryReservationImport> LegacyInventoryReservationImports => Set<LegacyInventoryReservationImport>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

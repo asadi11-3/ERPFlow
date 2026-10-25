@@ -1,4 +1,5 @@
 using ERPFlow.Domain.Entities;
+using ERPFlow.Domain.Inventory;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -22,6 +23,11 @@ public sealed class JobcardItemConfiguration : IEntityTypeConfiguration<JobcardI
         builder.HasOne<Product>()
             .WithMany()
             .HasForeignKey(item => item.ProductId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne<Warehouse>()
+            .WithMany()
+            .HasForeignKey(item => item.WarehouseId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(item => new { item.JobcardId, item.ProductId }).IsUnique();

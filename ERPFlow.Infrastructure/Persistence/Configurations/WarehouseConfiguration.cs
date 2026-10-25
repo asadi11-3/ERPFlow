@@ -19,5 +19,13 @@ public sealed class WarehouseConfiguration : IEntityTypeConfiguration<Warehouse>
         builder.Property(x => x.Name).HasMaxLength(200).IsRequired();
         builder.Property(x => x.RowVersion).IsRowVersion();
         builder.HasIndex(x => x.Code).IsUnique();
+        builder.HasData(new
+        {
+            Id = LegacyDefaultWarehouse.Id,
+            Code = LegacyDefaultWarehouse.Code,
+            Name = "Legacy inventory compatibility warehouse",
+            IsActive = true,
+            CreatedAt = new DateTime(2026, 10, 25, 0, 0, 0, DateTimeKind.Utc)
+        });
     }
 }

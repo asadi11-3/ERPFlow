@@ -249,9 +249,14 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ProductId");
+
+                    b.HasIndex("WarehouseId");
 
                     b.HasIndex("JobcardId", "ProductId")
                         .IsUnique();
@@ -428,9 +433,14 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ProductId");
+
+                    b.HasIndex("WarehouseId");
 
                     b.HasIndex("SalesOrderId", "ProductId")
                         .IsUnique();
@@ -448,9 +458,15 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int?>("ClosureKind")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasPrecision(7)
                         .HasColumnType("datetime2(7)");
+
+                    b.Property<bool>("IsHistorical")
+                        .HasColumnType("bit");
 
                     b.Property<bool>("IsReleased")
                         .HasColumnType("bit");
@@ -468,15 +484,25 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("SalesOrderId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ProductId");
 
+                    b.HasIndex("WarehouseId");
+
                     b.HasIndex("SalesOrderId", "ProductId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[IsHistorical] = 0");
 
                     b.ToTable("StockReservations", null, t =>
                         {
+                            t.HasCheckConstraint("CK_StockReservations_ClosureKind", "[ClosureKind] IS NULL OR ([IsReleased] = 1 AND [ClosureKind] IN (1, 2))");
+
+                            t.HasCheckConstraint("CK_StockReservations_HistoricalClosed", "[IsHistorical] = 0 OR [IsReleased] = 1");
+
                             t.HasCheckConstraint("CK_StockReservations_Quantity", "[Quantity] > 0");
                         });
                 });
@@ -579,6 +605,143 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_InventoryReservations_Quantity", "[Quantity] > 0");
 
                             t.HasCheckConstraint("CK_InventoryReservations_Status", "([Status] = 0 AND [ClosedAt] IS NULL) OR ([Status] IN (1, 2) AND [ClosedAt] IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Inventory.LegacyInventoryImportBatch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("DefaultWarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("FormatVersion")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("PreparedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("PreparedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("SourceFingerprint")
+                        .IsRequired()
+                        .HasColumnType("binary(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DefaultWarehouseId");
+
+                    b.HasIndex("PreparedByUserId");
+
+                    b.ToTable("LegacyInventoryImportBatches", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_LegacyInventoryImportBatches_Format", "[FormatVersion] = 1");
+                        });
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Inventory.LegacyInventoryOpening", b =>
+                {
+                    b.Property<Guid>("BatchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ReservedQuantity")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("SourceProductRowVersion")
+                        .IsRequired()
+                        .HasColumnType("binary(8)");
+
+                    b.Property<int>("StockOnHand")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("TargetWarehouseStockId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("BatchId", "ProductId");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("WarehouseId");
+
+                    b.HasIndex("BatchId", "TargetWarehouseStockId")
+                        .IsUnique();
+
+                    b.ToTable("LegacyInventoryOpenings", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_LegacyInventoryOpenings_Balances", "[StockOnHand] >= [ReservedQuantity] AND [ReservedQuantity] >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Inventory.LegacyInventoryReservationImport", b =>
+                {
+                    b.Property<Guid>("BatchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SourceKind")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("SourceId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Disposition")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsHistorical")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("JobcardItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("SalesOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("SourceClosedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("SourceCreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("TargetReservationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("WarehouseInferred")
+                        .HasColumnType("bit");
+
+                    b.HasKey("BatchId", "SourceKind", "SourceId");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("WarehouseId");
+
+                    b.HasIndex("BatchId", "TargetReservationId")
+                        .IsUnique();
+
+                    b.HasIndex("BatchId", "ProductId", "Disposition");
+
+                    b.ToTable("LegacyInventoryReservationImports", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_LegacyInventoryReservationImports_Disposition", "[Disposition] IN (0,1,2,3) AND ([IsHistorical] = 0 OR [Disposition] <> 0)");
+
+                            t.HasCheckConstraint("CK_LegacyInventoryReservationImports_Owner", "([SourceKind] = 0 AND [SalesOrderId] IS NOT NULL AND [JobcardItemId] IS NULL AND [TargetReservationId] = [SourceId]) OR ([SourceKind] = 1 AND [SalesOrderId] IS NULL AND [JobcardItemId] IS NOT NULL AND [JobcardItemId] = [SourceId])");
+
+                            t.HasCheckConstraint("CK_LegacyInventoryReservationImports_Quantity", "[Quantity] > 0");
                         });
                 });
 
@@ -686,6 +849,16 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_Warehouses_Name", "LEN(LTRIM(RTRIM([Name]))) > 0");
                         });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("0f96d350-19ce-4d10-92d9-b1f06be839f1"),
+                            Code = "LEGACY-DEFAULT",
+                            CreatedAt = new DateTime(2026, 10, 25, 0, 0, 0, 0, DateTimeKind.Utc),
+                            IsActive = true,
+                            Name = "Legacy inventory compatibility warehouse"
+                        });
                 });
 
             modelBuilder.Entity("ERPFlow.Domain.Inventory.WarehouseStock", b =>
@@ -786,6 +959,11 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         .HasForeignKey("ProductId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("ERPFlow.Domain.Inventory.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("ERPFlow.Domain.Entities.MachineAsset", b =>
@@ -836,6 +1014,11 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         .HasForeignKey("SalesOrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("ERPFlow.Domain.Inventory.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("ERPFlow.Domain.Entities.StockReservation", b =>
@@ -851,6 +1034,11 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         .HasForeignKey("SalesOrderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("ERPFlow.Domain.Inventory.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("ERPFlow.Domain.Inventory.InventoryPosting", b =>
@@ -883,6 +1071,63 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("WarehouseStockId", "ProductId")
                         .HasPrincipalKey("Id", "ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Inventory.LegacyInventoryImportBatch", b =>
+                {
+                    b.HasOne("ERPFlow.Domain.Inventory.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("DefaultWarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERPFlow.Domain.Entities.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("PreparedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Inventory.LegacyInventoryOpening", b =>
+                {
+                    b.HasOne("ERPFlow.Domain.Inventory.LegacyInventoryImportBatch", null)
+                        .WithMany()
+                        .HasForeignKey("BatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERPFlow.Domain.Entities.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERPFlow.Domain.Inventory.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Inventory.LegacyInventoryReservationImport", b =>
+                {
+                    b.HasOne("ERPFlow.Domain.Inventory.LegacyInventoryImportBatch", null)
+                        .WithMany()
+                        .HasForeignKey("BatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERPFlow.Domain.Entities.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERPFlow.Domain.Inventory.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

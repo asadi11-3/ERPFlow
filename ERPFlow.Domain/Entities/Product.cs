@@ -40,15 +40,16 @@ public sealed class Product
 
     public byte[] RowVersion { get; private set; } = [];
 
-    public StockReservation Reserve(Guid salesOrderId, int quantity)
+    public StockReservation Reserve(Guid salesOrderId, int quantity, Guid? warehouseId = null)
     {
         if (salesOrderId == Guid.Empty)
         {
             throw new ArgumentException("A sales order ID is required.", nameof(salesOrderId));
         }
 
+        var reservation = new StockReservation(salesOrderId, Id, quantity, warehouseId);
         ReserveQuantity(quantity);
-        return new StockReservation(salesOrderId, Id, quantity);
+        return reservation;
     }
 
     public void ReserveQuantity(int quantity)

@@ -49,10 +49,11 @@ public sealed class EfSalesOrderPersistence(ERPFlowDbContext context) : ISalesOr
                 order.Items.Sum(item => item.Quantity * item.UnitPrice),
                 order.Items.Select(item => new SalesOrderItemResult(
                     item.Id, item.ProductId, item.Quantity, item.UnitPrice,
-                    item.Quantity * item.UnitPrice)).ToList(),
-                order.Reservations.Select(reservation => new StockReservationResult(
+                    item.Quantity * item.UnitPrice, item.WarehouseId)).ToList(),
+                order.Reservations.Where(reservation => !reservation.IsHistorical).Select(reservation => new StockReservationResult(
                     reservation.Id, reservation.ProductId, reservation.Quantity,
-                    reservation.IsReleased, reservation.CreatedAt, reservation.ReleasedAt)).ToList())
+                    reservation.IsReleased, reservation.CreatedAt, reservation.ReleasedAt,
+                    reservation.WarehouseId)).ToList())
                 { RowVersion = order.RowVersion })
             .ToListAsync(cancellationToken);
 

@@ -134,6 +134,10 @@ The default client expects the API at `https://localhost:7165` and runs at `http
 
 The additive InventoryFoundation migration prepares Warehouse, WarehouseStock, explicit inventory reservation ownership, posting and movement tables. **Product balances remain authoritative.** No existing inventory workflow uses these tables and the registered posting gate refuses warehouse writes; there is no activation configuration flag. No live data backfill or cutover is included. See [the Phase 1 compatibility, transaction and cutover strategy](docs/inventory-foundation-phase1.md) before integrating later modules or deploying a cutover.
 
+### KDT Phase 2A/2B source and import preparation
+
+The WarehouseSourcePreparation migration adds nullable warehouse provenance, retains closed Sales reservation cycles and seeds one legacy-default warehouse metadata record. Old requests remain compatible; only the existing default bucket is accepted while Product is authoritative, with no non-default fallback. An Administrator-only internal preparation service stages reconciled opening/ownership manifests without applying inventory. See [the Phase 2A/2B compatibility, migration and preparation strategy](docs/inventory-source-preparation-phase2ab.md), especially deployment ordering and stale-manifest/cutover gates. **WarehouseStock authority is still disabled.**
+
 Migrations add database constraints for workflow invariants, including a unique delivery-note `SalesOrderId`, unique jobcard product rows, row-version concurrency on products, and non-negative stock rules. Jobcards use a concurrency-checked `Revision` that advances on every parts request, work start, and completion, protecting completion from racing parts requests even for different products.
 
 If an existing database already contains duplicate delivery notes for one sales order, the uniqueness migration can fail. Review and reconcile those records manually before applying it. ERPFlow doesn't run automated destructive cleanup or choose which duplicate business record to delete.

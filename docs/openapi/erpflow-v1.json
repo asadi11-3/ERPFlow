@@ -996,6 +996,13 @@
               "string"
             ],
             "format": "int32"
+          },
+          "warehouseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -1103,7 +1110,8 @@
           "productId",
           "quantity",
           "unitPrice",
-          "lineTotal"
+          "lineTotal",
+          "warehouseId"
         ],
         "type": "object",
         "properties": {
@@ -1138,6 +1146,13 @@
               "string"
             ],
             "format": "double"
+          },
+          "warehouseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -1159,6 +1174,13 @@
               "string"
             ],
             "format": "int32"
+          },
+          "warehouseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -1463,7 +1485,8 @@
           "productId",
           "quantity",
           "unitPrice",
-          "lineTotal"
+          "lineTotal",
+          "warehouseId"
         ],
         "type": "object",
         "properties": {
@@ -1498,6 +1521,13 @@
               "string"
             ],
             "format": "double"
+          },
+          "warehouseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -1632,7 +1662,8 @@
           "quantity",
           "isReleased",
           "createdAt",
-          "releasedAt"
+          "releasedAt",
+          "warehouseId"
         ],
         "type": "object",
         "properties": {
@@ -1665,6 +1696,13 @@
               "string"
             ],
             "format": "date-time"
+          },
+          "warehouseId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },

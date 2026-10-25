@@ -4,6 +4,7 @@ using ERPFlow.Application.Service;
 using ERPFlow.Domain.Entities;
 using ERPFlow.Domain.Enums;
 using ERPFlow.Infrastructure.Persistence;
+using ERPFlow.Infrastructure.Persistence.Inventory;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -329,7 +330,7 @@ public sealed class ServiceWorkflowIntegrationTests
     }
 
     private static ServiceWorkflow CreateWorkflow(ERPFlowDbContext context, Guid userId) =>
-        new(new EfServicePersistence(context), new TestCurrentUser(userId));
+        new(new EfServicePersistence(context), new TestCurrentUser(userId), new ProductAuthorityWarehouseSourcePolicy(context));
 
     private static CreateJobcardCommand CreateCommand(Guid customerId) =>
         new(customerId, null, "Technician", "Reported fault", JobcardPriority.Medium);

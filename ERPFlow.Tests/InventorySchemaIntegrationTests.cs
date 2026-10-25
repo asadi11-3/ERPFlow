@@ -73,8 +73,29 @@ public sealed class InventorySchemaIntegrationTests
             var jobcard = new Jobcard("LEGACY-JC", customer.Id, asset.Id, "Tech", "Keep fault");
             product.ReserveQuantity(3);
             jobcard.AddPart(product, 3);
-            context.AddRange(actor, customer, product, pending, shipped, history, delivery, asset, jobcard);
+            context.AddRange(actor, customer, product);
             await context.SaveChangesAsync();
+            await context.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO SalesOrders(Id,CustomerId,CreatedByUserId,Status,CreatedAt,SubmittedAt,DecidedAt)
+                VALUES({pending.Id},{customer.Id},{actor.Id},1,{pending.CreatedAt},{pending.SubmittedAt},NULL),
+                      ({shipped.Id},{customer.Id},{actor.Id},2,{shipped.CreatedAt},{shipped.SubmittedAt},{shipped.DecidedAt});
+                INSERT INTO SalesOrderItems(Id,SalesOrderId,ProductId,Quantity,UnitPrice)
+                VALUES({pending.Items[0].Id},{pending.Id},{product.Id},4,{product.UnitPrice}),
+                      ({shipped.Items[0].Id},{shipped.Id},{product.Id},2,{product.UnitPrice});
+                INSERT INTO StockReservations(Id,SalesOrderId,ProductId,Quantity,IsReleased,CreatedAt,ReleasedAt)
+                VALUES({pending.Reservations[0].Id},{pending.Id},{product.Id},4,0,{pending.Reservations[0].CreatedAt},NULL),
+                      ({shipped.Reservations[0].Id},{shipped.Id},{product.Id},2,1,{shipped.Reservations[0].CreatedAt},{shipped.Reservations[0].ReleasedAt});
+                INSERT INTO ApprovalHistories(Id,SalesOrderId,UserId,Action,Comments,CreatedAt)
+                VALUES({history.Id},{shipped.Id},{actor.Id},0,{history.Comments},{history.CreatedAt});
+                INSERT INTO DeliveryNotes(Id,SalesOrderId,CustomerId,DeliveryNumber,Carrier,DispatchedAt)
+                VALUES({delivery.Id},{shipped.Id},{customer.Id},{delivery.DeliveryNumber},{delivery.Carrier},{delivery.DispatchedAt});
+                INSERT INTO MachineAssets(Id,TagNumber,SerialNumber,ProductId,CustomerId,SalesOrderId,InstalledAt,WarrantyExpiresAt,Status,MeterReading)
+                VALUES({asset.Id},{asset.TagNumber},{asset.SerialNumber},{product.Id},{customer.Id},{shipped.Id},{asset.InstalledAt},{asset.WarrantyExpiresAt},{asset.Status},{asset.MeterReading});
+                INSERT INTO Jobcards(Id,TicketNumber,CustomerId,MachineAssetId,TechnicianName,ReportedFault,Priority,Status,CreatedAt,Revision)
+                VALUES({jobcard.Id},{jobcard.TicketNumber},{customer.Id},{asset.Id},{jobcard.TechnicianName},{jobcard.ReportedFault},1,1,{jobcard.CreatedAt},{jobcard.Revision});
+                INSERT INTO JobcardItems(Id,JobcardId,ProductId,Quantity,UnitPrice)
+                VALUES({jobcard.Items[0].Id},{jobcard.Id},{product.Id},3,{product.UnitPrice});
+                """);
             (productId, orderId, reservationId, jobcardId, deliveryId, assetId, historyId) =
                 (product.Id, pending.Id, pending.Reservations[0].Id, jobcard.Id, delivery.Id, asset.Id, history.Id);
             version = product.RowVersion.ToArray();
@@ -94,7 +115,7 @@ public sealed class InventorySchemaIntegrationTests
             Assert.NotNull(await context.DeliveryNotes.FindAsync(deliveryId));
             Assert.NotNull(await context.MachineAssets.FindAsync(assetId));
             Assert.Equal("Keep this history", (await context.ApprovalHistories.FindAsync(historyId))!.Comments);
-            Assert.Empty(await context.Warehouses.ToListAsync());
+            Assert.Equal(LegacyDefaultWarehouse.Id, Assert.Single(await context.Warehouses.ToListAsync()).Id);
             Assert.Empty(await context.WarehouseStocks.ToListAsync());
             Assert.Empty(await context.InventoryReservations.ToListAsync());
             Assert.Empty(await context.InventoryPostings.ToListAsync());

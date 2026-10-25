@@ -47,13 +47,15 @@ public sealed class SalesOrder
 
     public IReadOnlyList<SalesOrderItem> Items => _readOnlyItems;
 
-    public IReadOnlyList<StockReservation> Reservations => _readOnlyReservations;
+    public IReadOnlyList<StockReservation> Reservations => _reservations.Where(reservation => !reservation.IsHistorical).ToArray();
+
+    public IReadOnlyList<StockReservation> ReservationHistory => _readOnlyReservations;
 
     public decimal TotalAmount => _items.Sum(item => item.LineTotal);
 
     public byte[] RowVersion { get; private set; } = [];
 
-    public SalesOrderItem AddItem(Product product, int quantity)
+    public SalesOrderItem AddItem(Product product, int quantity, Guid? warehouseId = null)
     {
         ArgumentNullException.ThrowIfNull(product);
         EnsureDraft();
@@ -63,7 +65,7 @@ public sealed class SalesOrder
             throw new InvalidOperationException("An order cannot contain duplicate products.");
         }
 
-        var item = new SalesOrderItem(Id, product.Id, quantity, product.UnitPrice);
+        var item = new SalesOrderItem(Id, product.Id, quantity, product.UnitPrice, warehouseId);
         _items.Add(item);
         return item;
     }
@@ -81,7 +83,11 @@ public sealed class SalesOrder
         _items.Remove(item);
     }
 
-    public void EditDraft(Guid customerId, IReadOnlyCollection<(Product Product, int Quantity)> lines)
+    public void EditDraft(Guid customerId, IReadOnlyCollection<(Product Product, int Quantity)> lines) =>
+        EditDraft(customerId, lines.Select(line => (line.Product, line.Quantity,
+            _items.SingleOrDefault(item => item.ProductId == line.Product.Id)?.WarehouseId)).ToArray());
+
+    public void EditDraft(Guid customerId, IReadOnlyCollection<(Product Product, int Quantity, Guid? WarehouseId)> lines)
     {
         EnsureDraft();
         if (customerId == Guid.Empty)
@@ -101,7 +107,7 @@ public sealed class SalesOrder
         }
 
         var replacements = lines.Select(line =>
-            new SalesOrderItem(Id, line.Product.Id, line.Quantity, line.Product.UnitPrice)).ToArray();
+            new SalesOrderItem(Id, line.Product.Id, line.Quantity, line.Product.UnitPrice, line.WarehouseId)).ToArray();
         var productIds = replacements.Select(item => item.ProductId).ToHashSet();
         _items.RemoveAll(item => !productIds.Contains(item.ProductId));
         foreach (var replacement in replacements)
@@ -113,7 +119,7 @@ public sealed class SalesOrder
             }
             else
             {
-                existing.Revise(replacement.Quantity, replacement.UnitPrice);
+                existing.Revise(replacement.Quantity, replacement.UnitPrice, replacement.WarehouseId);
             }
         }
 
@@ -131,10 +137,10 @@ public sealed class SalesOrder
         }
 
         var productsById = ValidateProductsForReservation(products);
-        _reservations.Clear();
+        ArchiveClosedReservations();
         foreach (var item in _items)
         {
-            _reservations.Add(productsById[item.ProductId].Reserve(Id, item.Quantity));
+            _reservations.Add(productsById[item.ProductId].Reserve(Id, item.Quantity, item.WarehouseId));
         }
 
         Status = OrderStatus.PendingApproval;
@@ -162,7 +168,7 @@ public sealed class SalesOrder
         ArgumentNullException.ThrowIfNull(products);
         var productsById = ValidateProductsForRelease(products);
 
-        foreach (var reservation in _reservations)
+        foreach (var reservation in Reservations)
         {
             reservation.Release(productsById[reservation.ProductId]);
         }
@@ -183,7 +189,7 @@ public sealed class SalesOrder
         ArgumentNullException.ThrowIfNull(products);
         var productsById = ValidateProductsForRelease(products);
 
-        foreach (var reservation in _reservations)
+        foreach (var reservation in Reservations)
         {
             reservation.Release(productsById[reservation.ProductId]);
         }
@@ -192,6 +198,17 @@ public sealed class SalesOrder
         Status = OrderStatus.Draft;
         DecidedAt = null;
         return history;
+    }
+
+    public void ArchiveClosedReservations()
+    {
+        EnsureDraft();
+        if (Reservations.Any(reservation => !reservation.IsReleased))
+            throw new InvalidOperationException("Active reservations cannot be archived for resubmission.");
+        foreach (var reservation in _reservations.Where(reservation => reservation.IsReleased && !reservation.IsHistorical))
+        {
+            reservation.Archive();
+        }
     }
 
     public void Dispatch(IReadOnlyCollection<Product> products)
@@ -204,7 +221,7 @@ public sealed class SalesOrder
         ArgumentNullException.ThrowIfNull(products);
         var productsById = ValidateProductsForDispatch(products);
 
-        foreach (var reservation in _reservations)
+        foreach (var reservation in Reservations)
         {
             reservation.Consume(productsById[reservation.ProductId]);
         }
@@ -243,7 +260,7 @@ public sealed class SalesOrder
 
     private Dictionary<Guid, Product> ValidateProductsForRelease(IReadOnlyCollection<Product> products)
     {
-        if (products.Count != _reservations.Count)
+        if (products.Count != Reservations.Count)
         {
             throw new InvalidOperationException("Every order reservation must have one matching product.");
         }
@@ -262,7 +279,7 @@ public sealed class SalesOrder
             }
         }
 
-        foreach (var reservation in _reservations)
+        foreach (var reservation in Reservations)
         {
             if (!productsById.TryGetValue(reservation.ProductId, out var product) ||
                 reservation.IsReleased ||
@@ -277,7 +294,7 @@ public sealed class SalesOrder
 
     private Dictionary<Guid, Product> ValidateProductsForDispatch(IReadOnlyCollection<Product> products)
     {
-        if (_items.Count == 0 || _reservations.Count != _items.Count || products.Count != _items.Count)
+        if (_items.Count == 0 || Reservations.Count != _items.Count || products.Count != _items.Count)
         {
             throw new InvalidOperationException("Every order item must have one matching active reservation and product.");
         }
@@ -298,7 +315,7 @@ public sealed class SalesOrder
 
         foreach (var item in _items)
         {
-            var reservation = _reservations.SingleOrDefault(candidate => candidate.ProductId == item.ProductId);
+            var reservation = Reservations.SingleOrDefault(candidate => candidate.ProductId == item.ProductId);
             if (reservation is null ||
                 reservation.SalesOrderId != Id ||
                 reservation.IsReleased ||

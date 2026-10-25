@@ -2,7 +2,7 @@ namespace ERPFlow.Domain.Entities;
 
 public sealed class SalesOrderItem
 {
-    public SalesOrderItem(Guid salesOrderId, Guid productId, int quantity, decimal unitPrice)
+    public SalesOrderItem(Guid salesOrderId, Guid productId, int quantity, decimal unitPrice, Guid? warehouseId = null)
     {
         if (salesOrderId == Guid.Empty)
         {
@@ -24,11 +24,13 @@ public sealed class SalesOrderItem
             throw new ArgumentOutOfRangeException(nameof(unitPrice), "Unit price cannot be negative.");
         }
 
+        if (warehouseId == Guid.Empty) throw new ArgumentException("Warehouse ID cannot be empty.", nameof(warehouseId));
         Id = Guid.NewGuid();
         SalesOrderId = salesOrderId;
         ProductId = productId;
         Quantity = quantity;
         UnitPrice = unitPrice;
+        WarehouseId = warehouseId;
     }
 
     public Guid Id { get; private set; }
@@ -37,13 +39,15 @@ public sealed class SalesOrderItem
 
     public Guid ProductId { get; private set; }
 
+    public Guid? WarehouseId { get; private set; }
+
     public int Quantity { get; private set; }
 
     public decimal UnitPrice { get; private set; }
 
     public decimal LineTotal => Quantity * UnitPrice;
 
-    internal void Revise(int quantity, decimal unitPrice)
+    internal void Revise(int quantity, decimal unitPrice, Guid? warehouseId)
     {
         if (quantity <= 0 || unitPrice < 0)
         {
@@ -52,5 +56,6 @@ public sealed class SalesOrderItem
 
         Quantity = quantity;
         UnitPrice = unitPrice;
+        WarehouseId = warehouseId;
     }
 }

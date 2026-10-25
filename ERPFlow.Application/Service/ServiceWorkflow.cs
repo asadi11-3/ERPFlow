@@ -1,5 +1,6 @@
 using ERPFlow.Application.Abstractions;
 using ERPFlow.Application.Common;
+using ERPFlow.Application.Inventory;
 using ERPFlow.Domain.Entities;
 using ERPFlow.Domain.Enums;
 
@@ -7,7 +8,8 @@ namespace ERPFlow.Application.Service;
 
 public sealed class ServiceWorkflow(
     IServicePersistence persistence,
-    ICurrentUser currentUser) : IServiceWorkflow
+    ICurrentUser currentUser,
+    IWarehouseSourcePolicy warehouseSourcePolicy) : IServiceWorkflow
 {
     public async Task<IReadOnlyList<JobcardResult>> ListJobcardsAsync(
         JobcardStatus? status = null,
@@ -111,13 +113,17 @@ public sealed class ServiceWorkflow(
             }
         }
 
+        var warehouseIds = new Dictionary<Guid, Guid>();
+        foreach (var part in command.Parts)
+            warehouseIds.Add(part.ProductId, await warehouseSourcePolicy.ResolveAsync(part.WarehouseId, cancellationToken: cancellationToken));
+
         try
         {
             foreach (var part in command.Parts)
             {
                 var product = productsById[part.ProductId];
                 product.ReserveQuantity(part.Quantity);
-                jobcard.AddPart(product, part.Quantity);
+                jobcard.AddPart(product, part.Quantity, warehouseIds[part.ProductId]);
             }
         }
         catch (InvalidOperationException exception)
@@ -171,6 +177,7 @@ public sealed class ServiceWorkflow(
 
         foreach (var item in jobcard.Items)
         {
+            await warehouseSourcePolicy.ResolveAsync(item.WarehouseId, cancellationToken: cancellationToken);
             var product = productsById[item.ProductId];
             if (product.ReservedQuantity < item.Quantity || product.StockOnHand < item.Quantity)
             {
@@ -308,5 +315,6 @@ public sealed class ServiceWorkflow(
                 item.ProductId,
                 item.Quantity,
                 item.UnitPrice,
-                item.LineTotal)).ToArray());
+                item.LineTotal,
+                item.WarehouseId)).ToArray());
 }
