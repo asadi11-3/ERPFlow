@@ -90,7 +90,7 @@ public sealed class EfInventoryCutover(ERPFlowDbContext context, ICurrentUser ac
                 context.StockMovements.Add(new StockMovement(posting, stock, effects[opening.ProductId]));
             }
             await context.SaveChangesAsync(cancellationToken);
-            await EfInventoryReconciliation.VerifyAsync(context, cancellationToken);
+            await EfInventoryReconciliation.VerifyAsync(context, cancellationToken, batch.Id);
             authority.Complete(batch.Id, actor.UserId, request.PhysicalAttributionApproval, batch.SourceFingerprint,
                 commandHash, stocks.Count, owners.Length);
             await context.SaveChangesAsync(cancellationToken);

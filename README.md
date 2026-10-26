@@ -153,9 +153,11 @@ Run these from the repository root when validating a change:
 ```powershell
 dotnet restore ERPFlow.slnx
 dotnet build ERPFlow.slnx --no-restore
+$env:ERPFLOW_TEST_SQLSERVER = '(localdb)\MSSQLLocalDB'
 dotnet test ERPFlow.slnx --no-build
-dotnet ef migrations has-pending-model-changes --project ERPFlow.Infrastructure --startup-project ERPFlow.Api
 ```
+
+The migration contract test compares the current EF model with its snapshot without opening a database connection or starting the API. Development API startup applies migrations; do not use application startup or an unqualified EF startup-project command for an isolated cutover rehearsal.
 
 Frontend checks run from `front/`:
 

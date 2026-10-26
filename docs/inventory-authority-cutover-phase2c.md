@@ -155,7 +155,7 @@ SQL tests run only against fixture-generated isolated LocalDB/SQL Server catalog
 
 Coverage includes conserved reserved openings, original IDs, unknown closures, fresh empty initialization, duplicate/concurrent execution, dirty/tampered/stale manifests, missing physical approval, rollback after each of three import saves, blocked/incompatible writers, version-marker-only bypass, stale-tracked replay, actual shared/exclusive fencing, exact non-default consumption, concurrent Sales/Service/dispatch and current quantity reads.
 
-### Recorded final verification
+### Original implementation verification
 
 | Check | Result |
 | --- | --- |
@@ -176,7 +176,7 @@ Fault injection runs after target/owner/source-origin SQL, after opening movemen
 
 During hardening, execution exposed a fixture connection-string-option ordering issue and SQL Server autocommit `APPLOCK_MODE` error handling. Fixture authorization now compares registered canonical server/catalog identity, and missing user-transaction lock context is translated into a rejecting guard error rather than inferred from `@@TRANCOUNT`. These cases, including version-marker-only rejection, pass in the final full run. No failing test was removed to achieve the result.
 
-The new migration is uncommitted/unpublished and was applied only to disposable owned fixtures. Its first-release Up contains the final guard definitions; no live/shared migration was amended. Once released, subsequent trigger changes require a new migration.
+At the original verification the migration was uncommitted and had been applied only to disposable owned fixtures. The implementation is now the existing repository baseline at `221c0ff`; this follow-up leaves that migration unchanged. No live/shared migration was amended. Subsequent released trigger changes require a new migration.
 
 Fresh C# LSP diagnostics timed out; compiler/tests provide verification. EF CLI 10.0.11 emitted its existing older-tool warning against EF packages 10.0.13; tools, packages and production credentials were not changed. The first parallel Angular transport call timed out; the subsequent captured unit run passed. No production database, real host fleet, production permissions or physical counts were inspected.
 
@@ -190,3 +190,95 @@ Before production activation, separately approve and prove:
 6. Load/deadlock rehearsal for representative multi-line documents, monitoring and periodic reconciliation.
 
 The application-lock and SQL-protocol guards are technical protection, not proof that the production fleet, permissions or physical counts are ready. Until these operational items are verified, the live verdict remains NO-GO.
+
+## Follow-up implementation and isolated rehearsal — 2026-10-26
+
+The request arrived with Phase 2C already committed in `221c0ff`. This increment preserves that implementation and closes a demonstrated reconciliation defect. The pre-existing modification to `ERPFlow.Api/appsettings.Development.json` is preserved; it is excluded from this increment. No commit or push was performed.
+
+### Changed-file inventory for this increment
+
+| File | Change |
+| --- | --- |
+| `ERPFlow.Infrastructure/Persistence/Inventory/EfInventoryReconciliation.cs` | Verify posting-to-owner source/quantity/kind, native reserve/terminal lifecycle, approved import provenance and closed document history; clear observed authority when an owned reconciliation fails. |
+| `ERPFlow.Infrastructure/Persistence/Inventory/EfInventoryCutover.cs` | Supply the approved preparation ID to pre-completion reconciliation inside the existing atomic transaction. |
+| `ERPFlow.Tests/InventoryReconciliationAssociationTests.cs` | Eight isolated cases covering wrong-owner postings, equal-quantity wrong-warehouse associations, closed Sales mirror mismatch, consumed Jobcard state mismatch and valid return/edit/resubmit/dispatch history. |
+| `ERPFlow.Tests/InventoryCutoverMigrationTests.cs` | Two cases: real InventoryFoundation-to-latest upgrade followed by atomic import/replay, and offline migration/model-snapshot safety checks. |
+| `README.md` | Explicit LocalDB verification selection; replace unqualified EF startup-project verification with the offline model check in the migration test. |
+| `docs/inventory-authority-cutover-phase2c.md` | This follow-up inventory, evidence and readiness assessment. |
+
+### Confirmed defect and reconciliation contract
+
+Before the fix, a foreign-key-valid `InventoryPostings.ReservationId` could be changed to another existing reservation while all warehouse totals remained balanced. Reconciliation accepted it. Six corruption cases reproduced the gap (`Assert.Throws` failed because no exception was thrown); the valid historical lifecycle case already passed.
+
+Reconciliation now requires:
+
+- One movement per posting, matching kind, exact reservation stock identity and full quantity deltas.
+- One Reserve posting per native owner. An active owner has no terminal posting; a Released/Consumed owner has exactly one corresponding terminal posting, sequenced after Reserve.
+- An imported owner must match the **approved preparation**, including original identity, source, quantity and known source timestamp. An originally active import uses its opening instead of a Reserve posting; subsequent release/consumption requires its normal terminal event.
+- An originally closed import keeps its prepared disposition and closure timestamp and has **no fabricated historical posting**. `LegacyClosedUnknown` is admitted only with that provenance.
+- Closed Sales inventory ownership agrees with the original legacy reservation, including order/product/source/quantity and known closure kind. A consumed Sales owner requires an Approved dispatched order. Closed returned cycles may refer to products/quantities removed by a later Draft edit.
+- A consumed Jobcard owner matches the original part and a Completed Jobcard; unknown terminal imports remain unknown.
+
+There is no repair or balance adjustment on rejection. These are relational integrity checks, not tamper-proof audit attestation: perfectly symmetric reassignment of indistinguishable records cannot be disproved without independent protected evidence.
+
+### Legacy upgrade and opening evidence
+
+The upgrade case creates a unique owned LocalDB catalog at `InventoryFoundation`, inserts only columns present at that historical schema, then applies the additive upgrades twice. It verifies Product authority before explicit cutover. Preparation is performed **after** schema upgrade by the current preparation service.
+
+The source contains 20 physical / 5 reserved, an active Sales reservation of 2, an active Jobcard part of 3, two closed legacy Sales reservations, a completed historical Jobcard part, original approval history and a delivery note. After cutover and replay:
+
+- One WarehouseStock and one Opening movement retain `(20,5)` with sequence 1.
+- Five ownership records preserve original Sales IDs and Jobcard references; active owners total 5.
+- The three ambiguous closed owners remain `LegacyClosedUnknown`, without invented consumption/release movements.
+- Original known timestamps, approval text/time, delivery time, Product quantities and Product rowversion are unchanged.
+
+The offline contract case checks `HasPendingModelChanges() == false`, inactive Product-mode authority seeding, provenance columns, all eight SQL guard definitions, absence of destructive table/column/data operations and refusal of destructive downgrade. It uses an unreachable connection string and never opens a connection.
+
+### Direct operator-service rehearsal and rollback evidence
+
+A temporary, unshipped console driver directly invoked preparation/cutover/reconciliation against the unique catalog `ERPFlow_Phase2C_OperatorQA_f24dfad94dea4c80ba76796b374ff897` on `(localdb)\MSSQLLocalDB`. It loaded no application settings and used an exact catalog/server permission scoped to that invocation.
+
+Observed output:
+
+```text
+PASS fault injected after opening-ledger persistence
+PASS rollback: Product authority; zero stocks/owners/postings/movements
+PASS rollback: source50/6, rowversion and null origins preserved
+PASS import: stock50/6; one opening delta(50,6); two owners totaling6
+PASS original SalesID and Jobcard reference preserved
+PASS archived Product unchanged after success
+PASS replay: identical completion and one opening
+PASS reconciliation
+PASS old Product writer rejected SQL51001
+CLEANUP owned unique fixture database deleted
+```
+
+The focused suite additionally exercises failures after each of the three import saves, exact non-default sources, concurrent Sales/Service/Dispatch and reservation-owner races, incompatible writers, pre-cutover write rejection and stale/tampered preparations. No configured application database was accessed and no application host was launched for this rehearsal.
+
+### Final follow-up verification
+
+| Check | Observed result |
+| --- | --- |
+| `dotnet build ERPFlow.slnx --no-restore` | PASS, 0 warnings / 0 errors |
+| Full backend suite with `ERPFLOW_TEST_SQLSERVER=(localdb)\MSSQLLocalDB` | PASS, **209/209**, 0 failed / 0 skipped, 4m26s |
+| Focused `InventoryCutover` and `InventoryReconciliationAssociationTests` filter | PASS, **30/30**, including all ten new cases |
+| EF model/snapshot and inactive migration contract | PASS in the offline migration contract case |
+| `npm test -- --watch=false` | PASS, **24/24** across four files |
+| `npm run build` | PASS |
+| `npm run lint` | PASS |
+| Direct operator-service fault/retry/replay rehearsal | PASS; owned unique LocalDB catalog deleted |
+| `git diff --check` | PASS; LF/CRLF working-copy notices only |
+
+Full backend artifacts are retained at `C:\Users\User\AppData\Local\Temp\opencode\ERPFlow-Phase2C-20261026-verified.trx` and the adjacent `.stdout.log` / `.stderr.log` files. The temporary operator driver was removed after rehearsal; no executable activation host was added to the repository. The first captured full run passed 208/208 before the last exact-warehouse case; the final captured run above includes it. Earlier red corruption tests were retained and now pass. Fresh LSP diagnostics timed out; compiler and executed SQL tests provide verification.
+
+### Remaining activation prerequisites
+
+The operational prerequisites above still apply. The audit also confirms these concrete boundaries for subsequent development:
+
+1. The production operator permission and WarehouseStock gate remain disabled. A separately reviewed operator/deployment admission mechanism is required; an approval payload or configuration flag cannot enable them.
+2. Old readers cannot be fenced by DML triggers. Fleet drain, routing admission and database credential isolation must exclude old hosts, scripts and background workers before a live transition.
+3. Raw ledger DML is protected by EF boundaries, constraints and reconciliation, but the protocol triggers do not cover every ledger table. Production SQL grants and append-only/audit protection require a separate least-privilege deployment review. Session markers are not cryptographic application identity.
+4. Reference availability retains the compatible default-warehouse view. Non-default-source availability presentation and explicit stock-row provisioning must be designed before those user workflows are admitted to production.
+5. Rehearse on an approved restored copy with physical attribution evidence, representative load, backup/restore and forward-recovery procedures. A live switch cannot be undone by restoring an old Product-writing binary.
+
+**Further development and isolated rehearsal: GO. Live activation: NO-GO.** The tested mechanism remains inactive in production; the all-host/all-reader deployment transition is not proven by this repository-only rehearsal.
