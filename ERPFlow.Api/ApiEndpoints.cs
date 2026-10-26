@@ -27,6 +27,7 @@ public static class ApiEndpoints
     {
         var api = endpoints.MapGroup("/api");
         api.MapProcurementEndpoints();
+        api.MapGoodsReceiptEndpoints();
 
         api.MapPost("/auth/login", LoginAsync)
             .AllowAnonymous()

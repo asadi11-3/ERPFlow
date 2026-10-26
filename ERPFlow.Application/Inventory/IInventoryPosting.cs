@@ -5,7 +5,10 @@ namespace ERPFlow.Application.Inventory;
 public interface IInventoryPosting
 {
     Task<InventoryPostingResult> PostAsync(InventoryPostingRequest request, CancellationToken cancellationToken = default);
+    Task<InventoryPostingResult> PostReceiptAsync(InventoryReceiptRequest request, CancellationToken cancellationToken = default);
 }
+
+public sealed record InventoryReceiptRequest(Guid GoodsReceiptItemId, string IdempotencyKey);
 
 public interface IInventoryWriteGate
 {

@@ -282,3 +282,47 @@ The operational prerequisites above still apply. The audit also confirms these c
 5. Rehearse on an approved restored copy with physical attribution evidence, representative load, backup/restore and forward-recovery procedures. A live switch cannot be undone by restoring an old Product-writing binary.
 
 **Further development and isolated rehearsal: GO. Live activation: NO-GO.** The tested mechanism remains inactive in production; the all-host/all-reader deployment transition is not proven by this repository-only rehearsal.
+
+## Revalidation on committed baseline `de07159` — 2026-10-26
+
+Phase 2C is already implemented in `221c0ff` and hardened in `cccb824`. This repeat request was verified against the current committed tree rather than replacing the existing implementation. Pre-existing committed modules were preserved; no new module development was performed.
+
+### Changed-file inventory for this validation pass
+
+- `docs/inventory-authority-cutover-phase2c.md`: this current-baseline verification record only.
+- No C# source, migration, configuration, authority gate or frontend source changes were required. The implementation-file inventory earlier in this document remains applicable.
+- The pre-existing `ERPFlow.Api/appsettings.Development.json` modification is unchanged; its Git blob hash remains `4134a04f650bef6e25fdad549896014d333bb402`.
+
+### Rechecked mechanism and authority enforcement
+
+The production registrations remain `DisabledInventoryCutoverPermission` and `ProductAuthorityWriteGate`; both deny execution rather than selecting authority through configuration. The configured application database was not inspected, modified, migrated or reset. No live cutover, production WarehouseStock enablement, commit or push occurred.
+
+The existing operator mechanism still requires persisted Administrator authorization, an explicitly approved default physical attribution, a valid preparation/fingerprint and reconstructed manifest ownership. Wide/checked totals and frozen-source validation precede all import effects. An exclusive authority lock and owned Serializable transaction encompass opening stock, owners, origin attribution, postings/movements, reconciliation and the completion marker. Completion is saved last and committed once. Shared workflow locks, durable writer-version admission and SQL/EF Product guards retain the same authority across each transaction.
+
+### Fresh isolated evidence
+
+| Scenario | Verified result |
+| --- | --- |
+| Conserved opening/import/replay | 50 physical / 6 reserved; one opening delta `(50,6)`; two active owners totaling 6; original Sales ID, Jobcard reference and Product rowversion preserved; replay imports nothing twice. |
+| Historical-schema upgrade | 20 physical / 5 reserved imported once; five ownership records, including three unknown closed histories, retain original timestamps, approval and delivery evidence without invented closure movements. |
+| Concurrent Sales/Service/Dispatch | Warehouse finishes at 44 physical / 3 reserved; archived Product remains 50/6; exact non-default sources never fall back to default stock. |
+| Failure after each of three import saves | Rollback leaves Product authority, source 50/6, original null origins, no imported owners/postings/movements and unchanged zero target sequences; clean retry succeeds. |
+| Duplicate/concurrent and stale-tracked execution | One opening/ownership set; completed request replay returns stored metadata. |
+| Invalid/stale manifests, missing attribution approval and incompatible writers | Rejected without import effects; old Product writers and version-marker-only fence bypasses are rejected after isolated cutover. |
+| Reconciliation corruption | Wrong ownership/source/closure or balance mismatches fail reconciliation; no automatic repair or stock inflation. |
+| Fresh empty initialization | No invented opening quantities or owners. |
+
+All executed SQL tests used `ERPFLOW_TEST_SQLSERVER=(localdb)\MSSQLLocalDB` with fixture-generated unique catalogs and fixture cleanup. The production deny permissions were unchanged; only existing fixture-owned rehearsal permissions authorized isolated imports.
+
+| Check | Current-baseline result |
+| --- | --- |
+| `dotnet build ERPFlow.slnx --no-restore` | PASS, 0 warnings / 0 errors |
+| Focused cutover and reconciliation cases | PASS, **30/30**, 0 failures |
+| Full backend regression suite | PASS, **281/281**, 0 failed / 0 skipped, 3m02s |
+| Angular unit regressions | PASS, **24/24** across four files |
+
+Fresh full-suite artifacts: `C:\Users\User\AppData\Local\Temp\opencode\ERPFlow-Phase2C-de07159-full.trx` and adjacent `.stdout.log` / `.stderr.log` files. The full run includes existing unrelated regression fixtures; it does not introduce or extend those modules.
+
+### Decision and remaining prerequisites
+
+**GO for further development and isolated rehearsal. NO-GO for live activation.** Repository/fixture success does not prove production physical attribution, complete old-reader/writer drain, version routing/admission, least-privilege SQL/ledger permissions, an approved operator host or backup/forward-recovery readiness. Those operational prerequisites above remain outstanding. Product remains the configured environment's intended authority, and the production WarehouseStock gate remains closed.

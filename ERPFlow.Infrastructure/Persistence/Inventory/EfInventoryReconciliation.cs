@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ERPFlow.Infrastructure.Persistence.Inventory;
 
-public sealed class EfInventoryReconciliation(ERPFlowDbContext context) : IInventoryReconciliation
+public sealed partial class EfInventoryReconciliation(ERPFlowDbContext context) : IInventoryReconciliation
 {
     public async Task ReconcileAsync(CancellationToken cancellationToken = default)
     {
@@ -42,6 +42,7 @@ public sealed class EfInventoryReconciliation(ERPFlowDbContext context) : IInven
         var imports = await context.LegacyInventoryReservationImports.AsNoTracking()
             .Where(x => x.BatchId == preparationId).ToArrayAsync(ct);
         VerifyOwnerLedger(stocks, reservations, movements, postings, imports);
+        await VerifyReceiptsAsync(context, stocks, postings, movements, ct);
         foreach (var stock in stocks)
         {
             var history = movements.Where(x => x.WarehouseStockId == stock.Id).OrderBy(x => x.Sequence).ToArray();
@@ -145,6 +146,7 @@ public sealed class EfInventoryReconciliation(ERPFlowDbContext context) : IInven
                 if (posting.ReservationId.HasValue) Fail("An opening cannot claim a reservation event.");
                 continue;
             }
+            if (posting.Kind == InventoryPostingKind.Receipt) continue;
             var owner = posting.ReservationId.HasValue ? ownersById.GetValueOrDefault(posting.ReservationId.Value) : null;
             if (owner is null)
                 Fail("A posting has no reservation owner.");

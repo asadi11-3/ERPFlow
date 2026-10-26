@@ -173,7 +173,7 @@ public sealed class PurchaseOrderWorkflow(IProcurementPersistence persistence, I
         PurchaseOrderStatus.PartiallyReceived or PurchaseOrderStatus.Received or PurchaseOrderStatus.ShortClosed;
     private static PurchaseOrderResult View(PurchaseOrder x) => new(x.Id, x.PONumber, x.SupplierId, x.WarehouseId,
         x.CreatedByUserId, x.Status, x.CreatedAt, x.SubmittedAt, x.DecidedAt, x.Notes, x.TotalAmount,
-        x.Items.Select(i => new PurchaseOrderItemResult(i.Id, i.ProductId, i.Quantity, i.UnitCost, i.LineTotal)).ToArray(), x.RowVersion);
+        x.Items.Select(i => new PurchaseOrderItemResult(i.Id, i.ProductId, i.Quantity, i.UnitCost, i.LineTotal, i.ReceivedQuantity, i.RemainingQuantity)).ToArray(), x.RowVersion);
     private static PurchaseOrderOperationalResult OperationalView(PurchaseOrder x) => new(x.Id, x.PONumber, x.SupplierId,
-        x.WarehouseId, x.Status, x.CreatedAt, x.Items.Select(i => new PurchaseOrderOperationalItem(i.ProductId, i.Quantity)).ToArray());
+        x.WarehouseId, x.Status, x.CreatedAt, x.Items.Select(i => new PurchaseOrderOperationalItem(i.ProductId, i.Quantity, i.Id, i.ReceivedQuantity, i.RemainingQuantity)).ToArray(), x.RowVersion);
 }

@@ -1,6 +1,7 @@
 using ERPFlow.Domain.Entities;
 using ERPFlow.Domain.Inventory;
 using ERPFlow.Domain.Procurement;
+using ERPFlow.Domain.Receiving;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -68,11 +69,13 @@ public sealed class PurchaseOrderItemConfiguration : IEntityTypeConfiguration<Pu
             t.UseSqlOutputClause(false);
             t.HasCheckConstraint("CK_PurchaseOrderItems_Quantity", "[Quantity] > 0");
             t.HasCheckConstraint("CK_PurchaseOrderItems_Cost", "[UnitCost] BETWEEN 0 AND 999999999999.9999");
+            t.HasCheckConstraint("CK_PurchaseOrderItems_Received", "[ReceivedQuantity]>=0 AND [ReceivedQuantity]<=[Quantity]");
         });
         b.HasKey(x => x.Id);
         b.Property(x => x.Id).ValueGeneratedNever();
         b.Property(x => x.UnitCost).HasPrecision(16, 4);
         b.Ignore(x => x.LineTotal);
+        b.Ignore(x => x.RemainingQuantity);
         b.HasIndex(x => new { x.PurchaseOrderId, x.ProductId }).IsUnique();
         b.HasOne<Product>().WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Restrict);
     }
@@ -85,7 +88,7 @@ public sealed class PurchaseOrderHistoryConfiguration : IEntityTypeConfiguration
         b.ToTable("PurchaseOrderHistories", t =>
         {
             t.UseSqlOutputClause(false);
-            t.HasCheckConstraint("CK_PurchaseOrderHistories_Action", "([Action]=0 AND [FromStatus]=0 AND [ToStatus]=1) OR ([Action]=1 AND [FromStatus]=1 AND [ToStatus]=2) OR ([Action]=2 AND [FromStatus]=1 AND [ToStatus]=3) OR ([Action]=3 AND [FromStatus] IN (0,1,2) AND [ToStatus]=4)");
+            t.HasCheckConstraint("CK_PurchaseOrderHistories_Action", "([Action]=0 AND [FromStatus]=0 AND [ToStatus]=1 AND [GoodsReceiptId] IS NULL) OR ([Action]=1 AND [FromStatus]=1 AND [ToStatus]=2 AND [GoodsReceiptId] IS NULL) OR ([Action]=2 AND [FromStatus]=1 AND [ToStatus]=3 AND [GoodsReceiptId] IS NULL) OR ([Action]=3 AND [FromStatus] IN (0,1,2) AND [ToStatus]=4 AND [GoodsReceiptId] IS NULL) OR ([Action]=4 AND [FromStatus]=2 AND [ToStatus]=2 AND [GoodsReceiptId] IS NOT NULL) OR ([Action]=5 AND [FromStatus] IN (2,5) AND [ToStatus] IN (5,6) AND [GoodsReceiptId] IS NOT NULL)");
             t.HasCheckConstraint("CK_PurchaseOrderHistories_Revision", "[Revision] > 0");
         });
         b.HasKey(x => x.Id);
@@ -93,6 +96,7 @@ public sealed class PurchaseOrderHistoryConfiguration : IEntityTypeConfiguration
         b.Property(x => x.Comments).HasMaxLength(1000);
         b.HasOne<PurchaseOrder>().WithMany().HasForeignKey(x => x.PurchaseOrderId).OnDelete(DeleteBehavior.Restrict);
         b.HasOne<AppUser>().WithMany().HasForeignKey(x => x.ActorId).OnDelete(DeleteBehavior.Restrict);
+        b.HasOne<GoodsReceipt>().WithMany().HasForeignKey(x => x.GoodsReceiptId).OnDelete(DeleteBehavior.Restrict);
         b.HasIndex(x => new { x.PurchaseOrderId, x.Revision }).IsUnique();
     }
 }

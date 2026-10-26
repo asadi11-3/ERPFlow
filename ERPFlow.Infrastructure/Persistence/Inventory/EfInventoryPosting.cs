@@ -11,7 +11,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ERPFlow.Infrastructure.Persistence.Inventory;
 
-public sealed class EfInventoryPosting(
+public sealed partial class EfInventoryPosting(
     ERPFlowDbContext context,
     IInventoryWriteGate writeGate,
     ICurrentUser currentUser) : IInventoryPosting
@@ -157,6 +157,8 @@ public sealed class EfInventoryPosting(
     private static void Validate(InventoryPostingRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (request.Kind == InventoryPostingKind.Receipt)
+            throw new WorkflowValidationException("Receipts require the GRN-owned posting boundary.");
         if (!Enum.IsDefined(request.Kind) || request.WarehouseId == Guid.Empty || request.ProductId == Guid.Empty ||
             request.Quantity < 0 || (request.Quantity == 0 && request.Kind != InventoryPostingKind.Opening) ||
             request.ExpectedRowVersion is not { Length: 8 } || string.IsNullOrWhiteSpace(request.IdempotencyKey) ||

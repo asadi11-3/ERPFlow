@@ -20,13 +20,14 @@ public sealed record UpdatePurchaseOrderCommand(Guid SupplierId, Guid WarehouseI
     IReadOnlyCollection<PurchaseOrderLineCommand> Items, string? Notes, byte[] RowVersion);
 public sealed record PurchaseOrderDecisionCommand(byte[] RowVersion, string? Comments = null);
 public sealed record PurchaseOrderReasonCommand(byte[] RowVersion, string Reason);
-public sealed record PurchaseOrderItemResult(Guid Id, Guid ProductId, int Quantity, decimal UnitCost, decimal LineTotal);
+public sealed record PurchaseOrderItemResult(Guid Id, Guid ProductId, int Quantity, decimal UnitCost, decimal LineTotal,
+    int ReceivedQuantity, int RemainingQuantity);
 public sealed record PurchaseOrderResult(Guid Id, string PONumber, Guid SupplierId, Guid WarehouseId,
     Guid CreatedByUserId, PurchaseOrderStatus Status, DateTime CreatedAt, DateTime? SubmittedAt,
     DateTime? DecidedAt, string? Notes, decimal TotalAmount, IReadOnlyList<PurchaseOrderItemResult> Items, byte[] RowVersion);
-public sealed record PurchaseOrderOperationalItem(Guid ProductId, int Quantity);
+public sealed record PurchaseOrderOperationalItem(Guid ProductId, int Quantity, Guid PurchaseOrderItemId, int ReceivedQuantity, int RemainingQuantity);
 public sealed record PurchaseOrderOperationalResult(Guid Id, string PONumber, Guid SupplierId, Guid WarehouseId,
-    PurchaseOrderStatus Status, DateTime CreatedAt, IReadOnlyList<PurchaseOrderOperationalItem> Items);
+    PurchaseOrderStatus Status, DateTime CreatedAt, IReadOnlyList<PurchaseOrderOperationalItem> Items, byte[] RowVersion);
 public sealed record PurchaseOrderHistoryResult(Guid Id, Guid ActorId, PurchaseOrderAction Action,
     PurchaseOrderStatus FromStatus, PurchaseOrderStatus ToStatus, string? Comments, int Revision, DateTime CreatedAt);
 

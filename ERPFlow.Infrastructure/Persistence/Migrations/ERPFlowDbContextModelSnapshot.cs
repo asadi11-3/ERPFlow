@@ -603,6 +603,9 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("GoodsReceiptItemId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("IdempotencyKey")
                         .IsRequired()
                         .HasMaxLength(128)
@@ -621,6 +624,10 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("GoodsReceiptItemId")
+                        .IsUnique()
+                        .HasFilter("[GoodsReceiptItemId] IS NOT NULL");
+
                     b.HasIndex("ReservationId");
 
                     b.HasIndex("ActorId", "IdempotencyKey")
@@ -630,8 +637,10 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_InventoryPostings_Key", "LEN(LTRIM(RTRIM([IdempotencyKey]))) > 0");
 
-                            t.HasCheckConstraint("CK_InventoryPostings_Kind", "([Kind] = 0 AND [ReservationId] IS NULL) OR ([Kind] IN (1, 2, 3) AND [ReservationId] IS NOT NULL)");
+                            t.HasCheckConstraint("CK_InventoryPostings_Kind", "([Kind]=0 AND [ReservationId] IS NULL AND [GoodsReceiptItemId] IS NULL) OR ([Kind] IN (1,2,3) AND [ReservationId] IS NOT NULL AND [GoodsReceiptItemId] IS NULL) OR ([Kind]=4 AND [ReservationId] IS NULL AND [GoodsReceiptItemId] IS NOT NULL)");
                         });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
             modelBuilder.Entity("ERPFlow.Domain.Inventory.InventoryReservation", b =>
@@ -896,10 +905,12 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_StockMovements_Deltas", "[AfterOnHand] - [BeforeOnHand] = [PhysicalDelta] AND [AfterReserved] - [BeforeReserved] = [ReservedDelta]");
 
-                            t.HasCheckConstraint("CK_StockMovements_Kind", "([Kind] = 0 AND [Sequence] = 1 AND [BeforeOnHand] = 0 AND [BeforeReserved] = 0 AND [PhysicalDelta] >= 0 AND [ReservedDelta] >= 0) OR ([Kind] = 1 AND [PhysicalDelta] = 0 AND [ReservedDelta] > 0) OR ([Kind] = 2 AND [PhysicalDelta] = 0 AND [ReservedDelta] < 0) OR ([Kind] = 3 AND [PhysicalDelta] = [ReservedDelta] AND [PhysicalDelta] < 0)");
+                            t.HasCheckConstraint("CK_StockMovements_Kind", "([Kind] = 0 AND [Sequence] = 1 AND [BeforeOnHand] = 0 AND [BeforeReserved] = 0 AND [PhysicalDelta] >= 0 AND [ReservedDelta] >= 0) OR ([Kind] = 1 AND [PhysicalDelta] = 0 AND [ReservedDelta] > 0) OR ([Kind] = 2 AND [PhysicalDelta] = 0 AND [ReservedDelta] < 0) OR ([Kind] = 3 AND [PhysicalDelta] = [ReservedDelta] AND [PhysicalDelta] < 0) OR ([Kind]=4 AND [PhysicalDelta]>0 AND [ReservedDelta]=0)");
 
                             t.HasCheckConstraint("CK_StockMovements_Sequence", "[Sequence] > 0");
                         });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
             modelBuilder.Entity("ERPFlow.Domain.Inventory.Warehouse", b =>
@@ -1096,6 +1107,9 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                     b.Property<int>("FromStatus")
                         .HasColumnType("int");
 
+                    b.Property<Guid?>("GoodsReceiptId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("PurchaseOrderId")
                         .HasColumnType("uniqueidentifier");
 
@@ -1109,12 +1123,14 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ActorId");
 
+                    b.HasIndex("GoodsReceiptId");
+
                     b.HasIndex("PurchaseOrderId", "Revision")
                         .IsUnique();
 
                     b.ToTable("PurchaseOrderHistories", null, t =>
                         {
-                            t.HasCheckConstraint("CK_PurchaseOrderHistories_Action", "([Action]=0 AND [FromStatus]=0 AND [ToStatus]=1) OR ([Action]=1 AND [FromStatus]=1 AND [ToStatus]=2) OR ([Action]=2 AND [FromStatus]=1 AND [ToStatus]=3) OR ([Action]=3 AND [FromStatus] IN (0,1,2) AND [ToStatus]=4)");
+                            t.HasCheckConstraint("CK_PurchaseOrderHistories_Action", "([Action]=0 AND [FromStatus]=0 AND [ToStatus]=1 AND [GoodsReceiptId] IS NULL) OR ([Action]=1 AND [FromStatus]=1 AND [ToStatus]=2 AND [GoodsReceiptId] IS NULL) OR ([Action]=2 AND [FromStatus]=1 AND [ToStatus]=3 AND [GoodsReceiptId] IS NULL) OR ([Action]=3 AND [FromStatus] IN (0,1,2) AND [ToStatus]=4 AND [GoodsReceiptId] IS NULL) OR ([Action]=4 AND [FromStatus]=2 AND [ToStatus]=2 AND [GoodsReceiptId] IS NOT NULL) OR ([Action]=5 AND [FromStatus] IN (2,5) AND [ToStatus] IN (5,6) AND [GoodsReceiptId] IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_PurchaseOrderHistories_Revision", "[Revision] > 0");
                         });
@@ -1136,6 +1152,9 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                     b.Property<int>("Quantity")
                         .HasColumnType("int");
 
+                    b.Property<int>("ReceivedQuantity")
+                        .HasColumnType("int");
+
                     b.Property<decimal>("UnitCost")
                         .HasPrecision(16, 4)
                         .HasColumnType("decimal(16,4)");
@@ -1152,6 +1171,8 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_PurchaseOrderItems_Cost", "[UnitCost] BETWEEN 0 AND 999999999999.9999");
 
                             t.HasCheckConstraint("CK_PurchaseOrderItems_Quantity", "[Quantity] > 0");
+
+                            t.HasCheckConstraint("CK_PurchaseOrderItems_Received", "[ReceivedQuantity]>=0 AND [ReceivedQuantity]<=[Quantity]");
                         });
 
                     b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
@@ -1210,6 +1231,179 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_Suppliers_Code", "LEN(LTRIM(RTRIM([SupplierCode]))) BETWEEN 1 AND 32");
 
                             t.HasCheckConstraint("CK_Suppliers_Name", "LEN(LTRIM(RTRIM([Name]))) > 0");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Receiving.GoodsReceipt", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CancelledByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(48)
+                        .HasColumnType("nvarchar(48)");
+
+                    b.Property<DateTime?>("PostedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("PostedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("PurchaseOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SupplierDeliveryReference")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CancelledByUserId");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("Number")
+                        .IsUnique();
+
+                    b.HasIndex("PostedByUserId");
+
+                    b.HasIndex("PurchaseOrderId", "Status");
+
+                    b.HasIndex("SupplierId", "SupplierDeliveryReference")
+                        .IsUnique()
+                        .HasFilter("[SupplierDeliveryReference] IS NOT NULL AND [Status] <> 2");
+
+                    b.HasIndex("WarehouseId", "Status");
+
+                    b.ToTable("GoodsReceipts", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_GoodsReceipts_Status", "([Status]=0 AND [PostedByUserId] IS NULL AND [PostedAt] IS NULL AND [CancelledByUserId] IS NULL AND [CancelledAt] IS NULL AND [CancellationReason] IS NULL) OR ([Status]=1 AND [PostedByUserId] IS NOT NULL AND [PostedAt] IS NOT NULL AND [CancelledByUserId] IS NULL AND [CancelledAt] IS NULL AND [CancellationReason] IS NULL) OR ([Status]=2 AND [PostedByUserId] IS NULL AND [PostedAt] IS NULL AND [CancelledByUserId] IS NOT NULL AND [CancelledAt] IS NOT NULL AND LEN(LTRIM(RTRIM([CancellationReason])))>0)");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Receiving.GoodsReceiptCommand", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("GoodsReceiptId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("IdempotencyKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)")
+                        .UseCollation("Latin1_General_100_BIN2");
+
+                    b.Property<int>("Operation")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("RequestHash")
+                        .IsRequired()
+                        .HasColumnType("binary(32)");
+
+                    b.Property<string>("ResponseJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GoodsReceiptId");
+
+                    b.HasIndex("ActorId", "IdempotencyKey")
+                        .IsUnique();
+
+                    b.ToTable("GoodsReceiptCommands", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_GoodsReceiptCommands_Operation", "[Operation] IN (0,1)");
+
+                            t.HasCheckConstraint("CK_GoodsReceiptCommands_Response", "ISJSON([ResponseJson])=1");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Receiving.GoodsReceiptItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("GoodsReceiptId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("PurchaseOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("PurchaseOrderItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GoodsReceiptId", "ProductId")
+                        .IsUnique();
+
+                    b.HasIndex("GoodsReceiptId", "PurchaseOrderId");
+
+                    b.HasIndex("GoodsReceiptId", "PurchaseOrderItemId")
+                        .IsUnique();
+
+                    b.HasIndex("PurchaseOrderItemId", "PurchaseOrderId", "ProductId");
+
+                    b.ToTable("GoodsReceiptItems", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_GoodsReceiptItems_Quantity", "[Quantity]>0");
                         });
 
                     b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
@@ -1380,6 +1574,11 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("ERPFlow.Domain.Receiving.GoodsReceiptItem", null)
+                        .WithMany()
+                        .HasForeignKey("GoodsReceiptItemId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ERPFlow.Domain.Inventory.InventoryReservation", null)
                         .WithMany()
                         .HasForeignKey("ReservationId")
@@ -1523,6 +1722,11 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("ERPFlow.Domain.Receiving.GoodsReceipt", null)
+                        .WithMany()
+                        .HasForeignKey("GoodsReceiptId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ERPFlow.Domain.Procurement.PurchaseOrder", null)
                         .WithMany()
                         .HasForeignKey("PurchaseOrderId")
@@ -1545,6 +1749,75 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ERPFlow.Domain.Receiving.GoodsReceipt", b =>
+                {
+                    b.HasOne("ERPFlow.Domain.Entities.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("CancelledByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERPFlow.Domain.Entities.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERPFlow.Domain.Entities.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("PostedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERPFlow.Domain.Procurement.PurchaseOrder", null)
+                        .WithMany()
+                        .HasForeignKey("PurchaseOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERPFlow.Domain.Procurement.Supplier", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERPFlow.Domain.Inventory.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Receiving.GoodsReceiptCommand", b =>
+                {
+                    b.HasOne("ERPFlow.Domain.Entities.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERPFlow.Domain.Receiving.GoodsReceipt", null)
+                        .WithMany()
+                        .HasForeignKey("GoodsReceiptId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Receiving.GoodsReceiptItem", b =>
+                {
+                    b.HasOne("ERPFlow.Domain.Receiving.GoodsReceipt", null)
+                        .WithMany("Items")
+                        .HasForeignKey("GoodsReceiptId", "PurchaseOrderId")
+                        .HasPrincipalKey("Id", "PurchaseOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERPFlow.Domain.Procurement.PurchaseOrderItem", null)
+                        .WithMany()
+                        .HasForeignKey("PurchaseOrderItemId", "PurchaseOrderId", "ProductId")
+                        .HasPrincipalKey("Id", "PurchaseOrderId", "ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ERPFlow.Domain.Entities.Jobcard", b =>
                 {
                     b.Navigation("Items");
@@ -1558,6 +1831,11 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                 });
 
             modelBuilder.Entity("ERPFlow.Domain.Procurement.PurchaseOrder", b =>
+                {
+                    b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Receiving.GoodsReceipt", b =>
                 {
                     b.Navigation("Items");
                 });

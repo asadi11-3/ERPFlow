@@ -8,7 +8,7 @@ public enum PurchaseOrderStatus
     PartiallyReceived = 5, Received = 6, ShortClosed = 7
 }
 
-public enum PurchaseOrderAction { Submitted = 0, Approved = 1, Rejected = 2, Cancelled = 3 }
+public enum PurchaseOrderAction { Submitted = 0, Approved = 1, Rejected = 2, Cancelled = 3, ReceivingStarted = 4, ReceiptPosted = 5 }
 
 public sealed class PurchaseOrder
 {
@@ -44,6 +44,23 @@ public sealed class PurchaseOrder
     public int Revision { get; private set; }
     public DateTime? ReceivingStartedAt { get; private set; }
     public IReadOnlyList<PurchaseOrderItem> Items => _view;
+
+    public PurchaseOrderStatus ValidateReceipt(IReadOnlyCollection<(Guid PurchaseOrderItemId, int Quantity)> lines)
+    {
+        if (Status is not (PurchaseOrderStatus.Approved or PurchaseOrderStatus.PartiallyReceived))
+            throw new InvalidOperationException("Only Approved or PartiallyReceived POs accept goods receipts.");
+        if (lines.Count is < 1 or > MaxLines || lines.Select(x => x.PurchaseOrderItemId).Distinct().Count() != lines.Count)
+            throw new ArgumentException("A receipt needs distinct original PO lines.");
+        foreach (var line in lines)
+        {
+            var item = _items.SingleOrDefault(x => x.Id == line.PurchaseOrderItemId)
+                ?? throw new ArgumentException("The receipt line does not belong to this PO.");
+            if (line.Quantity <= 0 || (long)item.ReceivedQuantity + line.Quantity > item.Quantity)
+                throw new InvalidOperationException("Receipt quantity exceeds the remaining ordered quantity.");
+        }
+        return _items.All(item => (long)item.ReceivedQuantity + lines.Where(x => x.PurchaseOrderItemId == item.Id).Sum(x => (long)x.Quantity) == item.Quantity)
+            ? PurchaseOrderStatus.Received : PurchaseOrderStatus.PartiallyReceived;
+    }
 
     public void Edit(Guid supplierId, Guid warehouseId,
         IReadOnlyCollection<(Guid ProductId, int Quantity, decimal UnitCost)> items, string? notes)
@@ -138,6 +155,8 @@ public sealed class PurchaseOrderItem
     public Guid ProductId { get; private set; }
     public int Quantity { get; private set; }
     public decimal UnitCost { get; private set; }
+    public int ReceivedQuantity { get; private set; }
+    public int RemainingQuantity => checked(Quantity - ReceivedQuantity);
     public decimal LineTotal => checked(Quantity * UnitCost);
     internal void Revise(int quantity, decimal unitCost)
     {
@@ -173,4 +192,5 @@ public sealed class PurchaseOrderHistory
     public string? Comments { get; private set; }
     public int Revision { get; private set; }
     public DateTime CreatedAt { get; private set; }
+    public Guid? GoodsReceiptId { get; private set; }
 }

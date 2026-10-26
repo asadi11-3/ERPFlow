@@ -1,6 +1,7 @@
 using ERPFlow.Domain.Entities;
 using ERPFlow.Domain.Inventory;
 using ERPFlow.Domain.Procurement;
+using ERPFlow.Domain.Receiving;
 using Microsoft.EntityFrameworkCore;
 
 namespace ERPFlow.Infrastructure.Persistence;
@@ -42,6 +43,9 @@ public sealed partial class ERPFlowDbContext(DbContextOptions<ERPFlowDbContext> 
     public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
     public DbSet<PurchaseOrderItem> PurchaseOrderItems => Set<PurchaseOrderItem>();
     public DbSet<PurchaseOrderHistory> PurchaseOrderHistories => Set<PurchaseOrderHistory>();
+    public DbSet<GoodsReceipt> GoodsReceipts => Set<GoodsReceipt>();
+    public DbSet<GoodsReceiptItem> GoodsReceiptItems => Set<GoodsReceiptItem>();
+    public DbSet<GoodsReceiptCommand> GoodsReceiptCommands => Set<GoodsReceiptCommand>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

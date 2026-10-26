@@ -5,7 +5,7 @@ public sealed class InventoryPosting
     private InventoryPosting() { }
 
     public InventoryPosting(Guid actorId, string idempotencyKey, byte[] requestHash,
-        InventoryPostingKind kind, Guid? reservationId)
+        InventoryPostingKind kind, Guid? reservationId, Guid? goodsReceiptItemId = null)
     {
         if (actorId == Guid.Empty) throw new ArgumentException("An actor is required.", nameof(actorId));
         if (string.IsNullOrWhiteSpace(idempotencyKey) || idempotencyKey.Length > 128)
@@ -18,6 +18,7 @@ public sealed class InventoryPosting
         RequestHash = requestHash.ToArray();
         Kind = kind;
         ReservationId = reservationId;
+        GoodsReceiptItemId = goodsReceiptItemId;
         CreatedAt = DateTime.UtcNow;
     }
 
@@ -27,5 +28,6 @@ public sealed class InventoryPosting
     public byte[] RequestHash { get; private set; } = [];
     public InventoryPostingKind Kind { get; private set; }
     public Guid? ReservationId { get; private set; }
+    public Guid? GoodsReceiptItemId { get; private set; }
     public DateTime CreatedAt { get; private set; }
 }

@@ -1,5 +1,6 @@
 using ERPFlow.Domain.Entities;
 using ERPFlow.Domain.Inventory;
+using ERPFlow.Domain.Receiving;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -11,7 +12,8 @@ public sealed class InventoryPostingConfiguration : IEntityTypeConfiguration<Inv
     {
         builder.ToTable("InventoryPostings", table =>
         {
-            table.HasCheckConstraint("CK_InventoryPostings_Kind", "([Kind] = 0 AND [ReservationId] IS NULL) OR ([Kind] IN (1, 2, 3) AND [ReservationId] IS NOT NULL)");
+            table.UseSqlOutputClause(false);
+            table.HasCheckConstraint("CK_InventoryPostings_Kind", "([Kind]=0 AND [ReservationId] IS NULL AND [GoodsReceiptItemId] IS NULL) OR ([Kind] IN (1,2,3) AND [ReservationId] IS NOT NULL AND [GoodsReceiptItemId] IS NULL) OR ([Kind]=4 AND [ReservationId] IS NULL AND [GoodsReceiptItemId] IS NOT NULL)");
             table.HasCheckConstraint("CK_InventoryPostings_Key", "LEN(LTRIM(RTRIM([IdempotencyKey]))) > 0");
         });
         builder.HasKey(x => x.Id);
@@ -22,5 +24,7 @@ public sealed class InventoryPostingConfiguration : IEntityTypeConfiguration<Inv
         builder.HasIndex(x => new { x.ActorId, x.IdempotencyKey }).IsUnique();
         builder.HasOne<AppUser>().WithMany().HasForeignKey(x => x.ActorId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<InventoryReservation>().WithMany().HasForeignKey(x => x.ReservationId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<GoodsReceiptItem>().WithMany().HasForeignKey(x => x.GoodsReceiptItemId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(x => x.GoodsReceiptItemId).IsUnique().HasFilter("[GoodsReceiptItemId] IS NOT NULL");
     }
 }
