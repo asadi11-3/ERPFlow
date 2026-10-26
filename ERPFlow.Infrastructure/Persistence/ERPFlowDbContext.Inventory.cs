@@ -8,6 +8,8 @@ public sealed partial class ERPFlowDbContext
 {
     internal bool InventoryPostingInProgress { get; set; }
     internal bool ImportPreparationInProgress { get; set; }
+    internal bool InventoryCutoverInProgress { get; set; }
+    internal InventoryAuthorityMode? ObservedInventoryAuthority { get; set; }
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -27,6 +29,8 @@ public sealed partial class ERPFlowDbContext
         foreach (var entry in ChangeTracker.Entries())
         {
             if (entry.State is EntityState.Unchanged or EntityState.Detached) continue;
+            if (entry.Entity is InventoryAuthority && !InventoryCutoverInProgress)
+                throw new InvalidOperationException("Inventory authority can only transition through explicit atomic cutover.");
             if (entry.Entity is LegacyInventoryImportBatch or LegacyInventoryOpening or LegacyInventoryReservationImport)
             {
                 if (entry.State != EntityState.Added || !ImportPreparationInProgress)
@@ -35,6 +39,11 @@ public sealed partial class ERPFlowDbContext
             }
             if (ImportPreparationInProgress)
                 throw new InvalidOperationException("Import preparation cannot write inventory or legacy business records.");
+            if (ObservedInventoryAuthority == InventoryAuthorityMode.Warehouse && entry.Entity is Product &&
+                entry.State == EntityState.Modified && (entry.Property(nameof(Product.StockOnHand)).IsModified ||
+                entry.Property(nameof(Product.ReservedQuantity)).IsModified))
+                throw new InvalidOperationException("Product balances are frozen after inventory cutover.");
+            if (InventoryCutoverInProgress) continue;
             if (entry.Entity is StockMovement or InventoryPosting && entry.State != EntityState.Added)
                 throw new InvalidOperationException("Inventory posting history is append-only.");
             if (entry.Entity is WarehouseStock && entry.State == EntityState.Deleted)

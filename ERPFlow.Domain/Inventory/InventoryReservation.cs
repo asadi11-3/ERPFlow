@@ -4,14 +4,15 @@ public sealed class InventoryReservation
 {
     private InventoryReservation() { }
 
-    public InventoryReservation(WarehouseStock stock, int quantity, Guid? salesOrderId, Guid? jobcardItemId)
+    public InventoryReservation(WarehouseStock stock, int quantity, Guid? salesOrderId, Guid? jobcardItemId, Guid? id = null)
     {
         ArgumentNullException.ThrowIfNull(stock);
         if (quantity <= 0) throw new ArgumentOutOfRangeException(nameof(quantity));
         if (salesOrderId == Guid.Empty || jobcardItemId == Guid.Empty || salesOrderId.HasValue == jobcardItemId.HasValue)
             throw new ArgumentException("Exactly one valid Sales Order or Jobcard Item owner is required.");
 
-        Id = Guid.NewGuid();
+        if (id == Guid.Empty) throw new ArgumentException("Reservation identity cannot be empty.", nameof(id));
+        Id = id ?? Guid.NewGuid();
         WarehouseStockId = stock.Id;
         ProductId = stock.ProductId;
         Quantity = quantity;
@@ -30,6 +31,29 @@ public sealed class InventoryReservation
     public DateTime CreatedAt { get; private set; }
     public DateTime? ClosedAt { get; private set; }
     public byte[] RowVersion { get; private set; } = [];
+    public bool IsLegacyImport { get; private set; }
+    public DateTime? SourceCreatedAt { get; private set; }
+
+    public static InventoryReservation Import(WarehouseStock stock, LegacyInventoryReservationImport source)
+    {
+        var reservation = new InventoryReservation(stock, source.Quantity, source.SalesOrderId,
+            source.JobcardItemId, source.TargetReservationId)
+        {
+            Status = source.Disposition switch
+            {
+                LegacyReservationDisposition.Active => InventoryReservationStatus.Active,
+                LegacyReservationDisposition.Released => InventoryReservationStatus.Released,
+                LegacyReservationDisposition.Consumed => InventoryReservationStatus.Consumed,
+                LegacyReservationDisposition.LegacyClosedUnknown => InventoryReservationStatus.LegacyClosedUnknown,
+                _ => throw new InvalidOperationException("Unsupported imported disposition.")
+            },
+            IsLegacyImport = true,
+            SourceCreatedAt = source.SourceCreatedAt,
+            CreatedAt = source.SourceCreatedAt ?? DateTime.UtcNow,
+            ClosedAt = source.SourceClosedAt
+        };
+        return reservation;
+    }
 
     public void Close(InventoryPostingKind kind)
     {
@@ -49,5 +73,6 @@ public enum InventoryReservationStatus
 {
     Active = 0,
     Released = 1,
-    Consumed = 2
+    Consumed = 2,
+    LegacyClosedUnknown = 3
 }

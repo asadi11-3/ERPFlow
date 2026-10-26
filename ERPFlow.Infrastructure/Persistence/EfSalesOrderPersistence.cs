@@ -6,6 +6,7 @@ using ERPFlow.Domain.Entities;
 using ERPFlow.Domain.Enums;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using ERPFlow.Infrastructure.Persistence.Inventory;
 
 namespace ERPFlow.Infrastructure.Persistence;
 
@@ -63,10 +64,7 @@ public sealed class EfSalesOrderPersistence(ERPFlowDbContext context) : ISalesOr
     public async Task<IApplicationTransaction> BeginTransactionAsync(
         CancellationToken cancellationToken = default)
     {
-        var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.ReadCommitted,
-            cancellationToken);
-        return new EfApplicationTransaction(transaction);
+        return await InventoryAuthoritySession.BeginAsync(context, cancellationToken);
     }
 
     public Task<Customer?> FindCustomerAsync(

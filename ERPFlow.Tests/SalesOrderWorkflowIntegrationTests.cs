@@ -256,7 +256,8 @@ public sealed partial class SalesOrderWorkflowIntegrationTests
     }
 
     private static SalesOrderWorkflow CreateWorkflow(ERPFlowDbContext context, Guid userId) =>
-        new(new EfSalesOrderPersistence(context), new TestCurrentUser(userId), new ProductAuthorityWarehouseSourcePolicy(context));
+        new(new EfSalesOrderPersistence(context), new TestCurrentUser(userId), new ProductAuthorityWarehouseSourcePolicy(context),
+            new EfWorkflowInventory(context, new TestCurrentUser(userId), new ProductAuthorityWriteGate()));
 
     private static async Task<SeedResult> SeedDraftOrdersAsync(
         SqlServerTestDatabase database,

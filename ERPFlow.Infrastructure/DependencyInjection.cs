@@ -31,6 +31,10 @@ public static class DependencyInjection
         services.AddScoped<IInventoryPosting, EfInventoryPosting>();
         services.AddScoped<IWarehouseSourcePolicy, ProductAuthorityWarehouseSourcePolicy>();
         services.AddScoped<ILegacyInventoryImportPreparation, EfLegacyInventoryImportPreparation>();
+        services.AddSingleton<IInventoryCutoverPermission, DisabledInventoryCutoverPermission>();
+        services.AddScoped<IInventoryCutover, EfInventoryCutover>();
+        services.AddScoped<IInventoryReconciliation, EfInventoryReconciliation>();
+        services.AddScoped<IWorkflowInventory, EfWorkflowInventory>();
         return services;
     }
 }

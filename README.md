@@ -138,6 +138,10 @@ The additive InventoryFoundation migration prepares Warehouse, WarehouseStock, e
 
 The WarehouseSourcePreparation migration adds nullable warehouse provenance, retains closed Sales reservation cycles and seeds one legacy-default warehouse metadata record. Old requests remain compatible; only the existing default bucket is accepted while Product is authoritative, with no non-default fallback. An Administrator-only internal preparation service stages reconciled opening/ownership manifests without applying inventory. See [the Phase 2A/2B compatibility, migration and preparation strategy](docs/inventory-source-preparation-phase2ab.md), especially deployment ordering and stale-manifest/cutover gates. **WarehouseStock authority is still disabled.**
 
+### KDT Phase 2C inactive atomic cutover
+
+An operator-service implementation and isolated rehearsal now cover atomic conserved openings/owners, reconciliation, durable authority/version fencing and warehouse-backed Sales/Service/Equipment branches. The migration starts in Product mode; application cutover and WarehouseStock permissions remain fail-closed, without activation flags or endpoints. **No live cutover is enabled.** Read [the Phase 2C mechanism, evidence and activation blockers](docs/inventory-authority-cutover-phase2c.md) before any deployment proposal. Old Product balances are not removed, and destructive downgrade is prohibited.
+
 Migrations add database constraints for workflow invariants, including a unique delivery-note `SalesOrderId`, unique jobcard product rows, row-version concurrency on products, and non-negative stock rules. Jobcards use a concurrency-checked `Revision` that advances on every parts request, work start, and completion, protecting completion from racing parts requests even for different products.
 
 If an existing database already contains duplicate delivery notes for one sales order, the uniqueness migration can fail. Review and reconcile those records manually before applying it. ERPFlow doesn't run automated destructive cleanup or choose which duplicate business record to delete.

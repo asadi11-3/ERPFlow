@@ -10,6 +10,7 @@ public sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
     {
         builder.ToTable("Products", table =>
         {
+            table.UseSqlOutputClause(false);
             table.HasCheckConstraint("CK_Products_UnitPrice", "[UnitPrice] >= 0");
             table.HasCheckConstraint("CK_Products_StockOnHand", "[StockOnHand] >= 0");
             table.HasCheckConstraint("CK_Products_ReservedQuantity", "[ReservedQuantity] >= 0 AND [ReservedQuantity] <= [StockOnHand]");

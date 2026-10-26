@@ -8,7 +8,7 @@ public sealed class SalesOrderConfiguration : IEntityTypeConfiguration<SalesOrde
 {
     public void Configure(EntityTypeBuilder<SalesOrder> builder)
     {
-        builder.ToTable("SalesOrders");
+        builder.ToTable("SalesOrders", table => table.UseSqlOutputClause(false));
         builder.HasKey(order => order.Id);
         builder.Property(order => order.Id).ValueGeneratedNever();
 

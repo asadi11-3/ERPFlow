@@ -21,7 +21,8 @@ public sealed record InventoryPostingRequest(
     byte[] ExpectedRowVersion,
     Guid? SalesOrderId = null,
     Guid? JobcardItemId = null,
-    Guid? ReservationId = null);
+    Guid? ReservationId = null,
+    Guid? NewReservationId = null);
 
 public sealed record InventoryPostingResult(
     Guid PostingId,

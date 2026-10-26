@@ -232,7 +232,8 @@ public sealed partial class EquipmentWorkflowIntegrationTests
     }
 
     private static EquipmentWorkflow CreateWorkflow(ERPFlowDbContext context, Guid userId) =>
-        new(new EfEquipmentPersistence(context), new TestCurrentUser(userId), new ProductAuthorityWarehouseSourcePolicy(context));
+        new(new EfEquipmentPersistence(context), new TestCurrentUser(userId), new ProductAuthorityWarehouseSourcePolicy(context),
+            new EfWorkflowInventory(context, new TestCurrentUser(userId), new ProductAuthorityWriteGate()));
 
     private static async Task<SeedResult> SeedApprovedOrderAsync(SqlServerTestDatabase database, int quantity)
     {

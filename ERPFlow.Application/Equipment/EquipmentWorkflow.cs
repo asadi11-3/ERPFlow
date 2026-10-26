@@ -9,7 +9,8 @@ namespace ERPFlow.Application.Equipment;
 public sealed class EquipmentWorkflow(
     IEquipmentPersistence persistence,
     ICurrentUser currentUser,
-    IWarehouseSourcePolicy warehouseSourcePolicy) : IEquipmentWorkflow
+    IWarehouseSourcePolicy warehouseSourcePolicy,
+    IWorkflowInventory inventory) : IEquipmentWorkflow
 {
     public const int MaxDispatchUnits = 1000;
 
@@ -62,7 +63,8 @@ public sealed class EquipmentWorkflow(
         try
         {
             await ValidateReservationOriginsAsync(order, cancellationToken);
-            order.Dispatch(products);
+            if (inventory.UsesWarehouseStock) await inventory.ConsumeSalesAsync(order, cancellationToken);
+            order.Dispatch(products, inventory.UsesWarehouseStock);
         }
         catch (InvalidOperationException exception)
         {

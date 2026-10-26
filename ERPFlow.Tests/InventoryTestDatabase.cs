@@ -10,11 +10,22 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using System.Collections.Concurrent;
 
 namespace ERPFlow.Tests;
 
 internal sealed class InventoryTestDatabase(string connectionString) : IAsyncDisposable
 {
+    private static readonly ConcurrentDictionary<string, byte> OwnedConnections = new(StringComparer.Ordinal);
+
+    internal static bool Owns(ERPFlowDbContext context) => OwnedConnections.ContainsKey(
+        Identity(context.Database.GetConnectionString()));
+
+    private static string Identity(string? connectionString)
+    {
+        var connection = new SqlConnectionStringBuilder(connectionString);
+        return $"{connection.DataSource.Trim().ToUpperInvariant()}|{connection.InitialCatalog.Trim().ToUpperInvariant()}";
+    }
     public const string LegacyMigration = "20261024110336_CriticalWorkflowConsistency";
 
     public static async Task<InventoryTestDatabase> CreateAsync(string? targetMigration = null)
@@ -31,6 +42,7 @@ internal sealed class InventoryTestDatabase(string connectionString) : IAsyncDis
         {
             await using var context = database.Context();
             await context.GetService<IMigrator>().MigrateAsync(targetMigration);
+            OwnedConnections.TryAdd(Identity(connection.ConnectionString), 0);
             return database;
         }
         catch
@@ -76,6 +88,7 @@ internal sealed class InventoryTestDatabase(string connectionString) : IAsyncDis
 
     public async ValueTask DisposeAsync()
     {
+        OwnedConnections.TryRemove(Identity(connectionString), out _);
         SqlConnection.ClearAllPools();
         await using var context = Context();
         await context.Database.EnsureDeletedAsync();

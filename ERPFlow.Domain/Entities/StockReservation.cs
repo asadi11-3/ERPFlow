@@ -98,6 +98,15 @@ public sealed class StockReservation
 
         IsHistorical = true;
     }
+
+    internal void CloseWarehouse(StockReservationClosureKind kind)
+    {
+        if (IsReleased || IsHistorical || !WarehouseId.HasValue || !Enum.IsDefined(kind))
+            throw new InvalidOperationException("Only an active exact-source warehouse reservation can close.");
+        IsReleased = true;
+        ReleasedAt = DateTime.UtcNow;
+        ClosureKind = kind;
+    }
 }
 
 public enum StockReservationClosureKind

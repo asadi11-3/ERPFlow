@@ -48,6 +48,22 @@ public sealed class WarehouseStock
         Sequence = effect.Sequence;
         return effect;
     }
+
+    public StockEffect ImportOpening(int onHand, int reserved)
+    {
+        if (Sequence != 0 || StockOnHand != 0 || ReservedQuantity != 0 || reserved < 0 || onHand < reserved)
+            throw new InvalidOperationException("Only an unused zero stock row can receive a conserved legacy opening.");
+        StockOnHand = onHand;
+        ReservedQuantity = reserved;
+        Sequence = 1;
+        return new StockEffect(0, 0, onHand, reserved, 1);
+    }
+
+    public static WarehouseStock ImportTarget(Guid id, Guid warehouseId, Guid productId)
+    {
+        if (id == Guid.Empty) throw new ArgumentException("An original target ID is required.", nameof(id));
+        return new WarehouseStock(warehouseId, productId) { Id = id };
+    }
 }
 
 public sealed record StockEffect(int BeforeOnHand, int BeforeReserved, int AfterOnHand, int AfterReserved, long Sequence);

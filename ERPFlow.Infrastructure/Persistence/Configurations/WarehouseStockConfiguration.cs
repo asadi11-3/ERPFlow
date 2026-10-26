@@ -11,6 +11,7 @@ public sealed class WarehouseStockConfiguration : IEntityTypeConfiguration<Wareh
     {
         builder.ToTable("WarehouseStocks", table =>
         {
+            table.UseSqlOutputClause(false);
             table.HasCheckConstraint("CK_WarehouseStocks_Balances", "[StockOnHand] >= 0 AND [ReservedQuantity] >= 0 AND [ReservedQuantity] <= [StockOnHand]");
             table.HasCheckConstraint("CK_WarehouseStocks_Sequence", "[Sequence] >= 0 AND ([Sequence] > 0 OR ([StockOnHand] = 0 AND [ReservedQuantity] = 0))");
         });

@@ -9,7 +9,8 @@ namespace ERPFlow.Application.Service;
 public sealed class ServiceWorkflow(
     IServicePersistence persistence,
     ICurrentUser currentUser,
-    IWarehouseSourcePolicy warehouseSourcePolicy) : IServiceWorkflow
+    IWarehouseSourcePolicy warehouseSourcePolicy,
+    IWorkflowInventory inventory) : IServiceWorkflow
 {
     public async Task<IReadOnlyList<JobcardResult>> ListJobcardsAsync(
         JobcardStatus? status = null,
@@ -107,7 +108,7 @@ public sealed class ServiceWorkflow(
         foreach (var p in command.Parts)
         {
             var product = productsById[p.ProductId];
-            if (p.Quantity > product.AvailableStock)
+            if (!inventory.UsesWarehouseStock && p.Quantity > product.AvailableStock)
             {
                 throw new WorkflowConflictException($"Insufficient stock for product '{product.Name}'. Available: {product.AvailableStock}.");
             }
@@ -117,14 +118,17 @@ public sealed class ServiceWorkflow(
         foreach (var part in command.Parts)
             warehouseIds.Add(part.ProductId, await warehouseSourcePolicy.ResolveAsync(part.WarehouseId, cancellationToken: cancellationToken));
 
+        var priorItemIds = jobcard.Items.Select(x => x.Id).ToHashSet();
         try
         {
             foreach (var part in command.Parts)
             {
                 var product = productsById[part.ProductId];
-                product.ReserveQuantity(part.Quantity);
+                if (!inventory.UsesWarehouseStock) product.ReserveQuantity(part.Quantity);
                 jobcard.AddPart(product, part.Quantity, warehouseIds[part.ProductId]);
             }
+            if (inventory.UsesWarehouseStock)
+                await inventory.ReservePartsAsync(jobcard, jobcard.Items.Where(x => !priorItemIds.Contains(x.Id)).Select(x => x.Id).ToArray(), cancellationToken);
         }
         catch (InvalidOperationException exception)
         {
@@ -179,7 +183,7 @@ public sealed class ServiceWorkflow(
         {
             await warehouseSourcePolicy.ResolveAsync(item.WarehouseId, cancellationToken: cancellationToken);
             var product = productsById[item.ProductId];
-            if (product.ReservedQuantity < item.Quantity || product.StockOnHand < item.Quantity)
+            if (!inventory.UsesWarehouseStock && (product.ReservedQuantity < item.Quantity || product.StockOnHand < item.Quantity))
             {
                 throw new WorkflowConflictException($"Reserved stock for product '{product.Name}' is inconsistent with this jobcard.");
             }
@@ -187,8 +191,9 @@ public sealed class ServiceWorkflow(
 
         try
         {
+            if (inventory.UsesWarehouseStock) await inventory.ConsumePartsAsync(jobcard, cancellationToken);
             jobcard.Complete(command.TechnicianNotes, command.FinalMeterReading);
-            foreach (var item in jobcard.Items)
+            foreach (var item in jobcard.Items.Where(_ => !inventory.UsesWarehouseStock))
             {
                 productsById[item.ProductId].ConsumeReservedQuantity(item.Quantity);
             }

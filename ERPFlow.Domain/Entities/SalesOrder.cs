@@ -126,7 +126,7 @@ public sealed class SalesOrder
         CustomerId = customerId;
     }
 
-    public void Submit(IReadOnlyCollection<Product> products)
+    public void Submit(IReadOnlyCollection<Product> products, bool warehouseAuthority = false)
     {
         EnsureDraft();
         ArgumentNullException.ThrowIfNull(products);
@@ -136,11 +136,16 @@ public sealed class SalesOrder
             throw new InvalidOperationException("An order must contain at least one item before submission.");
         }
 
-        var productsById = ValidateProductsForReservation(products);
+        var productsById = warehouseAuthority ? products.ToDictionary(x => x.Id) : ValidateProductsForReservation(products);
+        if (warehouseAuthority && (productsById.Count != _items.Count || _items.Any(x =>
+            !productsById.ContainsKey(x.ProductId) || !x.WarehouseId.HasValue)))
+            throw new InvalidOperationException("Every warehouse line needs an exact catalog product and persisted source.");
         ArchiveClosedReservations();
         foreach (var item in _items)
         {
-            _reservations.Add(productsById[item.ProductId].Reserve(Id, item.Quantity, item.WarehouseId));
+            _reservations.Add(warehouseAuthority
+                ? new StockReservation(Id, item.ProductId, item.Quantity, item.WarehouseId)
+                : productsById[item.ProductId].Reserve(Id, item.Quantity, item.WarehouseId));
         }
 
         Status = OrderStatus.PendingApproval;
@@ -161,16 +166,18 @@ public sealed class SalesOrder
     public ApprovalHistory Reject(
         Guid approverId,
         IReadOnlyCollection<Product> products,
-        string? comments = null)
+        string? comments = null, bool warehouseAuthority = false)
     {
         EnsurePendingApproval();
         ValidateUserId(approverId);
         ArgumentNullException.ThrowIfNull(products);
-        var productsById = ValidateProductsForRelease(products);
+        var productsById = warehouseAuthority ? null : ValidateProductsForRelease(products);
+        if (warehouseAuthority) ValidateWarehouseReservations();
 
         foreach (var reservation in Reservations)
         {
-            reservation.Release(productsById[reservation.ProductId]);
+            if (warehouseAuthority) reservation.CloseWarehouse(StockReservationClosureKind.Released);
+            else reservation.Release(productsById![reservation.ProductId]);
         }
 
         var history = new ApprovalHistory(Id, approverId, ApprovalAction.Rejected, comments);
@@ -182,16 +189,18 @@ public sealed class SalesOrder
     public ApprovalHistory ReturnForCorrection(
         Guid approverId,
         IReadOnlyCollection<Product> products,
-        string? comments = null)
+        string? comments = null, bool warehouseAuthority = false)
     {
         EnsurePendingApproval();
         ValidateUserId(approverId);
         ArgumentNullException.ThrowIfNull(products);
-        var productsById = ValidateProductsForRelease(products);
+        var productsById = warehouseAuthority ? null : ValidateProductsForRelease(products);
+        if (warehouseAuthority) ValidateWarehouseReservations();
 
         foreach (var reservation in Reservations)
         {
-            reservation.Release(productsById[reservation.ProductId]);
+            if (warehouseAuthority) reservation.CloseWarehouse(StockReservationClosureKind.Released);
+            else reservation.Release(productsById![reservation.ProductId]);
         }
 
         var history = new ApprovalHistory(Id, approverId, ApprovalAction.Returned, comments);
@@ -211,7 +220,7 @@ public sealed class SalesOrder
         }
     }
 
-    public void Dispatch(IReadOnlyCollection<Product> products)
+    public void Dispatch(IReadOnlyCollection<Product> products, bool warehouseAuthority = false)
     {
         if (Status != OrderStatus.Approved)
         {
@@ -219,12 +228,22 @@ public sealed class SalesOrder
         }
 
         ArgumentNullException.ThrowIfNull(products);
-        var productsById = ValidateProductsForDispatch(products);
+        var productsById = warehouseAuthority ? null : ValidateProductsForDispatch(products);
+        if (warehouseAuthority) ValidateWarehouseReservations();
 
         foreach (var reservation in Reservations)
         {
-            reservation.Consume(productsById[reservation.ProductId]);
+            if (warehouseAuthority) reservation.CloseWarehouse(StockReservationClosureKind.Consumed);
+            else reservation.Consume(productsById![reservation.ProductId]);
         }
+    }
+
+    private void ValidateWarehouseReservations()
+    {
+        if (_items.Count == 0 || Reservations.Count != _items.Count || _items.Any(item =>
+            !item.WarehouseId.HasValue || Reservations.Count(r => r.ProductId == item.ProductId &&
+                r.Quantity == item.Quantity && r.WarehouseId == item.WarehouseId && !r.IsReleased) != 1))
+            throw new InvalidOperationException("Current reservations must match every warehouse line exactly.");
     }
 
     private Dictionary<Guid, Product> ValidateProductsForReservation(IReadOnlyCollection<Product> products)

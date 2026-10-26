@@ -16,6 +16,9 @@ public sealed class EfLegacyInventoryImportPreparation(ERPFlowDbContext context,
         await EnsureAdministratorAsync(cancellationToken);
         EnsureCleanContext();
         await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        await InventoryAuthoritySession.EnterAsync(context, false, cancellationToken);
+        if (context.ObservedInventoryAuthority != InventoryAuthorityMode.Product)
+            throw new WorkflowConflictException("Legacy preparation cannot run after warehouse authority is active.");
         var snapshot = await LegacyInventorySnapshot.ReadAsync(context, cancellationToken);
         var report = LegacyInventoryPreflight.Check(snapshot);
         if (preparationId.HasValue)
@@ -37,6 +40,9 @@ public sealed class EfLegacyInventoryImportPreparation(ERPFlowDbContext context,
         await EnsureAdministratorAsync(cancellationToken);
         EnsureCleanContext();
         await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        await InventoryAuthoritySession.EnterAsync(context, false, cancellationToken);
+        if (context.ObservedInventoryAuthority != InventoryAuthorityMode.Product)
+            throw new WorkflowConflictException("Legacy preparation cannot run after warehouse authority is active.");
         var existing = await context.LegacyInventoryImportBatches.FromSqlInterpolated(
             $"SELECT * FROM LegacyInventoryImportBatches WITH (UPDLOCK, HOLDLOCK) WHERE Id={preparationId}")
             .AsNoTracking().SingleOrDefaultAsync(cancellationToken);

@@ -11,6 +11,7 @@ public sealed class SalesOrderItemConfiguration : IEntityTypeConfiguration<Sales
     {
         builder.ToTable("SalesOrderItems", table =>
         {
+            table.UseSqlOutputClause(false);
             table.HasCheckConstraint("CK_SalesOrderItems_Quantity", "[Quantity] > 0");
             table.HasCheckConstraint("CK_SalesOrderItems_UnitPrice", "[UnitPrice] >= 0");
         });

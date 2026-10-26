@@ -13,7 +13,7 @@ public sealed class ProductAuthorityWarehouseSourcePolicy(ERPFlowDbContext conte
         if (requestedWarehouseId == Guid.Empty || existingWarehouseId == Guid.Empty)
             throw new WorkflowValidationException("Warehouse IDs cannot be empty.");
         var selected = requestedWarehouseId ?? existingWarehouseId ?? LegacyDefaultWarehouse.Id;
-        if (selected != LegacyDefaultWarehouse.Id)
+        if (context.ObservedInventoryAuthority != InventoryAuthorityMode.Warehouse && selected != LegacyDefaultWarehouse.Id)
             throw new WorkflowConflictException("Non-default warehouse inventory requires the separately approved atomic cutover. No fallback is permitted.");
         if (!await context.Warehouses.AsNoTracking().AnyAsync(x => x.Id == selected && x.IsActive, cancellationToken))
             throw new WorkflowConflictException("The legacy default warehouse is unavailable. No fallback is permitted.");

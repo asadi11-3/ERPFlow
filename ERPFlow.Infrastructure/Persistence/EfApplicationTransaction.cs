@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore.Storage;
 
 namespace ERPFlow.Infrastructure.Persistence;
 
-internal sealed class EfApplicationTransaction(IDbContextTransaction transaction) : IApplicationTransaction
+internal sealed class EfApplicationTransaction(IDbContextTransaction transaction, ERPFlowDbContext? context = null) : IApplicationTransaction
 {
     public async Task CommitAsync(CancellationToken cancellationToken = default)
     {
@@ -21,5 +21,9 @@ internal sealed class EfApplicationTransaction(IDbContextTransaction transaction
         }
     }
 
-    public ValueTask DisposeAsync() => transaction.DisposeAsync();
+    public async ValueTask DisposeAsync()
+    {
+        await transaction.DisposeAsync();
+        if (context is not null) context.ObservedInventoryAuthority = null;
+    }
 }

@@ -229,6 +229,8 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("Jobcards", (string)null);
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
             modelBuilder.Entity("ERPFlow.Domain.Entities.JobcardItem", b =>
@@ -262,6 +264,8 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("JobcardItems", (string)null);
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
             modelBuilder.Entity("ERPFlow.Domain.Entities.MachineAsset", b =>
@@ -370,6 +374,8 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_Products_UnitPrice", "[UnitPrice] >= 0");
                         });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
             modelBuilder.Entity("ERPFlow.Domain.Entities.SalesOrder", b =>
@@ -413,6 +419,8 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                     b.HasIndex("CustomerId", "CreatedAt");
 
                     b.ToTable("SalesOrders", (string)null);
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
             modelBuilder.Entity("ERPFlow.Domain.Entities.SalesOrderItem", b =>
@@ -451,6 +459,8 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_SalesOrderItems_UnitPrice", "[UnitPrice] >= 0");
                         });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
             modelBuilder.Entity("ERPFlow.Domain.Entities.StockReservation", b =>
@@ -504,6 +514,81 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_StockReservations_HistoricalClosed", "[IsHistorical] = 0 OR [IsReleased] = 1");
 
                             t.HasCheckConstraint("CK_StockReservations_Quantity", "[Quantity] > 0");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Inventory.InventoryAuthority", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("CommandHash")
+                        .HasColumnType("binary(32)");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("DefaultWarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ImportedReservations")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ImportedStocks")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MinimumWriterVersion")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Mode")
+                        .HasColumnType("int");
+
+                    b.Property<string>("PhysicalAttributionApproval")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid?>("PreparationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<byte[]>("SourceFingerprint")
+                        .HasColumnType("binary(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApprovedByUserId");
+
+                    b.HasIndex("DefaultWarehouseId");
+
+                    b.HasIndex("PreparationId");
+
+                    b.ToTable("InventoryAuthorities", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_InventoryAuthorities_Singleton", "[Id] = 1");
+
+                            t.HasCheckConstraint("CK_InventoryAuthorities_State", "([Mode] = 0 AND [MinimumWriterVersion] = 1 AND [PreparationId] IS NULL AND [CompletedAt] IS NULL) OR ([Mode] = 1 AND [MinimumWriterVersion] = 2 AND [PreparationId] IS NOT NULL AND [CompletedAt] IS NOT NULL AND [ApprovedByUserId] IS NOT NULL AND [DefaultWarehouseId] IS NOT NULL AND [PhysicalAttributionApproval] IS NOT NULL AND [SourceFingerprint] IS NOT NULL AND [CommandHash] IS NOT NULL)");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            ImportedReservations = 0,
+                            ImportedStocks = 0,
+                            MinimumWriterVersion = 1,
+                            Mode = 0
                         });
                 });
 
@@ -560,6 +645,9 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<bool>("IsLegacyImport")
+                        .HasColumnType("bit");
+
                     b.Property<Guid?>("JobcardItemId")
                         .HasColumnType("uniqueidentifier");
 
@@ -577,6 +665,9 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid?>("SalesOrderId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("SourceCreatedAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -604,7 +695,7 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_InventoryReservations_Quantity", "[Quantity] > 0");
 
-                            t.HasCheckConstraint("CK_InventoryReservations_Status", "([Status] = 0 AND [ClosedAt] IS NULL) OR ([Status] IN (1, 2) AND [ClosedAt] IS NOT NULL)");
+                            t.HasCheckConstraint("CK_InventoryReservations_Status", "([Status] = 0 AND [ClosedAt] IS NULL) OR ([Status] IN (1, 2) AND ([ClosedAt] IS NOT NULL OR [IsLegacyImport] = 1)) OR ([Status] = 3 AND [IsLegacyImport] = 1)");
                         });
                 });
 
@@ -805,7 +896,7 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_StockMovements_Deltas", "[AfterOnHand] - [BeforeOnHand] = [PhysicalDelta] AND [AfterReserved] - [BeforeReserved] = [ReservedDelta]");
 
-                            t.HasCheckConstraint("CK_StockMovements_Kind", "([Kind] = 0 AND [Sequence] = 1 AND [BeforeOnHand] = 0 AND [BeforeReserved] = 0 AND [PhysicalDelta] >= 0 AND [ReservedDelta] = 0) OR ([Kind] = 1 AND [PhysicalDelta] = 0 AND [ReservedDelta] > 0) OR ([Kind] = 2 AND [PhysicalDelta] = 0 AND [ReservedDelta] < 0) OR ([Kind] = 3 AND [PhysicalDelta] = [ReservedDelta] AND [PhysicalDelta] < 0)");
+                            t.HasCheckConstraint("CK_StockMovements_Kind", "([Kind] = 0 AND [Sequence] = 1 AND [BeforeOnHand] = 0 AND [BeforeReserved] = 0 AND [PhysicalDelta] >= 0 AND [ReservedDelta] >= 0) OR ([Kind] = 1 AND [PhysicalDelta] = 0 AND [ReservedDelta] > 0) OR ([Kind] = 2 AND [PhysicalDelta] = 0 AND [ReservedDelta] < 0) OR ([Kind] = 3 AND [PhysicalDelta] = [ReservedDelta] AND [PhysicalDelta] < 0)");
 
                             t.HasCheckConstraint("CK_StockMovements_Sequence", "[Sequence] > 0");
                         });
@@ -900,6 +991,8 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_WarehouseStocks_Sequence", "[Sequence] >= 0 AND ([Sequence] > 0 OR ([StockOnHand] = 0 AND [ReservedQuantity] = 0))");
                         });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
             modelBuilder.Entity("ERPFlow.Domain.Entities.ApprovalHistory", b =>
@@ -1038,6 +1131,24 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                     b.HasOne("ERPFlow.Domain.Inventory.Warehouse", null)
                         .WithMany()
                         .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Inventory.InventoryAuthority", b =>
+                {
+                    b.HasOne("ERPFlow.Domain.Entities.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("ApprovedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERPFlow.Domain.Inventory.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("DefaultWarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ERPFlow.Domain.Inventory.LegacyInventoryImportBatch", null)
+                        .WithMany()
+                        .HasForeignKey("PreparationId")
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 

@@ -13,7 +13,7 @@ public sealed class StockMovementConfiguration : IEntityTypeConfiguration<StockM
             table.HasCheckConstraint("CK_StockMovements_Balances", "[BeforeOnHand] >= [BeforeReserved] AND [BeforeReserved] >= 0 AND [AfterOnHand] >= [AfterReserved] AND [AfterReserved] >= 0");
             table.HasCheckConstraint("CK_StockMovements_Deltas", "[AfterOnHand] - [BeforeOnHand] = [PhysicalDelta] AND [AfterReserved] - [BeforeReserved] = [ReservedDelta]");
             table.HasCheckConstraint("CK_StockMovements_Sequence", "[Sequence] > 0");
-            table.HasCheckConstraint("CK_StockMovements_Kind", "([Kind] = 0 AND [Sequence] = 1 AND [BeforeOnHand] = 0 AND [BeforeReserved] = 0 AND [PhysicalDelta] >= 0 AND [ReservedDelta] = 0) OR ([Kind] = 1 AND [PhysicalDelta] = 0 AND [ReservedDelta] > 0) OR ([Kind] = 2 AND [PhysicalDelta] = 0 AND [ReservedDelta] < 0) OR ([Kind] = 3 AND [PhysicalDelta] = [ReservedDelta] AND [PhysicalDelta] < 0)");
+            table.HasCheckConstraint("CK_StockMovements_Kind", "([Kind] = 0 AND [Sequence] = 1 AND [BeforeOnHand] = 0 AND [BeforeReserved] = 0 AND [PhysicalDelta] >= 0 AND [ReservedDelta] >= 0) OR ([Kind] = 1 AND [PhysicalDelta] = 0 AND [ReservedDelta] > 0) OR ([Kind] = 2 AND [PhysicalDelta] = 0 AND [ReservedDelta] < 0) OR ([Kind] = 3 AND [PhysicalDelta] = [ReservedDelta] AND [PhysicalDelta] < 0)");
         });
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id).ValueGeneratedNever();

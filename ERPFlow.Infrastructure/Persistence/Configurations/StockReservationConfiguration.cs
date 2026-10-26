@@ -11,6 +11,7 @@ public sealed class StockReservationConfiguration : IEntityTypeConfiguration<Sto
     {
         builder.ToTable("StockReservations", table =>
         {
+            table.UseSqlOutputClause(false);
             table.HasCheckConstraint("CK_StockReservations_Quantity", "[Quantity] > 0");
             table.HasCheckConstraint("CK_StockReservations_HistoricalClosed", "[IsHistorical] = 0 OR [IsReleased] = 1");
             table.HasCheckConstraint("CK_StockReservations_ClosureKind", "[ClosureKind] IS NULL OR ([IsReleased] = 1 AND [ClosureKind] IN (1, 2))");

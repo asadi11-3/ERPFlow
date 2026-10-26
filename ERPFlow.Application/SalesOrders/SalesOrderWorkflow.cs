@@ -9,7 +9,8 @@ namespace ERPFlow.Application.SalesOrders;
 public sealed class SalesOrderWorkflow(
     ISalesOrderPersistence persistence,
     ICurrentUser currentUser,
-    IWarehouseSourcePolicy warehouseSourcePolicy) : ISalesOrderWorkflow
+    IWarehouseSourcePolicy warehouseSourcePolicy,
+    IWorkflowInventory inventory) : ISalesOrderWorkflow
 {
     public async Task<SalesOrderPage> ListAsync(
         int page,
@@ -146,7 +147,8 @@ public sealed class SalesOrderWorkflow(
                 order.ArchiveClosedReservations();
                 await persistence.SaveChangesAsync(cancellationToken);
             }
-            order.Submit(products);
+            order.Submit(products, inventory.UsesWarehouseStock);
+            if (inventory.UsesWarehouseStock) await inventory.ReserveSalesAsync(order, cancellationToken);
         }
         catch (InvalidOperationException exception)
         {
@@ -215,7 +217,8 @@ public sealed class SalesOrderWorkflow(
         try
         {
             await ValidateReservationOriginsAsync(order, cancellationToken);
-            history = order.Reject(actor.Id, products, reason);
+            if (inventory.UsesWarehouseStock) await inventory.ReleaseSalesAsync(order, cancellationToken);
+            history = order.Reject(actor.Id, products, reason, inventory.UsesWarehouseStock);
         }
         catch (InvalidOperationException exception)
         {
@@ -251,7 +254,8 @@ public sealed class SalesOrderWorkflow(
         try
         {
             await ValidateReservationOriginsAsync(order, cancellationToken);
-            history = order.ReturnForCorrection(actor.Id, products, reason);
+            if (inventory.UsesWarehouseStock) await inventory.ReleaseSalesAsync(order, cancellationToken);
+            history = order.ReturnForCorrection(actor.Id, products, reason, inventory.UsesWarehouseStock);
         }
         catch (InvalidOperationException exception)
         {

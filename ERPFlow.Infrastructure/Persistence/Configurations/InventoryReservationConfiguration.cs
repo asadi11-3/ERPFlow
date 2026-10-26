@@ -13,7 +13,7 @@ public sealed class InventoryReservationConfiguration : IEntityTypeConfiguration
         {
             table.HasCheckConstraint("CK_InventoryReservations_Quantity", "[Quantity] > 0");
             table.HasCheckConstraint("CK_InventoryReservations_Owner", "([SalesOrderId] IS NOT NULL AND [JobcardItemId] IS NULL) OR ([SalesOrderId] IS NULL AND [JobcardItemId] IS NOT NULL)");
-            table.HasCheckConstraint("CK_InventoryReservations_Status", "([Status] = 0 AND [ClosedAt] IS NULL) OR ([Status] IN (1, 2) AND [ClosedAt] IS NOT NULL)");
+            table.HasCheckConstraint("CK_InventoryReservations_Status", "([Status] = 0 AND [ClosedAt] IS NULL) OR ([Status] IN (1, 2) AND ([ClosedAt] IS NOT NULL OR [IsLegacyImport] = 1)) OR ([Status] = 3 AND [IsLegacyImport] = 1)");
         });
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id).ValueGeneratedNever();

@@ -3,6 +3,7 @@ using ERPFlow.Application.Common;
 using ERPFlow.Domain.Entities;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using ERPFlow.Infrastructure.Persistence.Inventory;
 
 namespace ERPFlow.Infrastructure.Persistence;
 
@@ -10,8 +11,7 @@ public sealed class EfEquipmentPersistence(ERPFlowDbContext context) : IEquipmen
 {
     public async Task<IApplicationTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
     {
-        var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
-        return new EfApplicationTransaction(transaction);
+        return await InventoryAuthoritySession.BeginAsync(context, cancellationToken);
     }
 
     public async Task<SalesOrder?> GetOrderAsync(Guid orderId, CancellationToken cancellationToken = default)

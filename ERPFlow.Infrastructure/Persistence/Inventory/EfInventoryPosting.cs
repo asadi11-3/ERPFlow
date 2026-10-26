@@ -38,6 +38,7 @@ public sealed class EfInventoryPosting(
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
         try
         {
+            await InventoryAuthoritySession.EnterAsync(context, false, cancellationToken);
             var result = await ExecuteAsync(request, actorId, hash, cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return result;
@@ -49,6 +50,10 @@ public sealed class EfInventoryPosting(
             context.ChangeTracker.Clear();
             var replay = await ReplayAsync(actorId, request.IdempotencyKey, hash, cancellationToken);
             return replay ?? throw new ConcurrencyConflictException("The inventory posting conflicted. Reload and retry the complete operation.", exception);
+        }
+        finally
+        {
+            context.ObservedInventoryAuthority = null;
         }
     }
 
@@ -69,7 +74,7 @@ public sealed class EfInventoryPosting(
         if (request.Kind == InventoryPostingKind.Reserve)
         {
             await ValidateOwnerAsync(request, ct);
-            reservation = new InventoryReservation(stock, request.Quantity, request.SalesOrderId, request.JobcardItemId);
+            reservation = new InventoryReservation(stock, request.Quantity, request.SalesOrderId, request.JobcardItemId, request.NewReservationId);
         }
         else if (request.Kind is InventoryPostingKind.Release or InventoryPostingKind.Consume)
         {
@@ -123,11 +128,14 @@ public sealed class EfInventoryPosting(
 
     private async Task ValidateOwnerAsync(InventoryPostingRequest request, CancellationToken ct)
     {
+        var exactSource = context.ObservedInventoryAuthority == InventoryAuthorityMode.Warehouse;
         var matches = request.SalesOrderId.HasValue
             ? await context.SalesOrderItems.AsNoTracking().AnyAsync(x => x.SalesOrderId == request.SalesOrderId &&
-                x.ProductId == request.ProductId && x.Quantity == request.Quantity, ct)
+                x.ProductId == request.ProductId && x.Quantity == request.Quantity &&
+                (!exactSource || (x.WarehouseId ?? LegacyDefaultWarehouse.Id) == request.WarehouseId), ct)
             : await context.JobcardItems.AsNoTracking().AnyAsync(x => x.Id == request.JobcardItemId &&
-                x.ProductId == request.ProductId && x.Quantity == request.Quantity, ct);
+                x.ProductId == request.ProductId && x.Quantity == request.Quantity &&
+                (!exactSource || (x.WarehouseId ?? LegacyDefaultWarehouse.Id) == request.WarehouseId), ct);
         if (!matches) throw new WorkflowConflictException("The reservation must match a persisted owner line.");
     }
 
@@ -157,6 +165,7 @@ public sealed class EfInventoryPosting(
         var hasOwner = request.SalesOrderId.HasValue != request.JobcardItemId.HasValue;
         var closing = request.Kind is InventoryPostingKind.Release or InventoryPostingKind.Consume;
         if (request.SalesOrderId == Guid.Empty || request.JobcardItemId == Guid.Empty || request.ReservationId == Guid.Empty ||
+            request.NewReservationId == Guid.Empty || (request.NewReservationId.HasValue && request.Kind != InventoryPostingKind.Reserve) ||
             (request.Kind == InventoryPostingKind.Opening && (hasOwner || request.SalesOrderId.HasValue || request.ReservationId.HasValue)) ||
             (request.Kind != InventoryPostingKind.Opening && !hasOwner) || closing != request.ReservationId.HasValue)
             throw new WorkflowValidationException("Inventory posting ownership or reservation identity is invalid.");
@@ -166,7 +175,8 @@ public sealed class EfInventoryPosting(
         "inventory-v1", ((int)request.Kind).ToString(CultureInfo.InvariantCulture), request.WarehouseId.ToString("N"),
         request.ProductId.ToString("N"), request.Quantity.ToString(CultureInfo.InvariantCulture),
         Convert.ToBase64String(request.ExpectedRowVersion), request.SalesOrderId?.ToString("N") ?? "-",
-        request.JobcardItemId?.ToString("N") ?? "-", request.ReservationId?.ToString("N") ?? "-")));
+        request.JobcardItemId?.ToString("N") ?? "-", request.ReservationId?.ToString("N") ?? "-",
+        request.NewReservationId?.ToString("N") ?? "-")));
 
     private static bool IsConflict(Exception exception)
     {
