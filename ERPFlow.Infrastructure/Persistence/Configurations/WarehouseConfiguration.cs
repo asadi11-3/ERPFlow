@@ -10,6 +10,7 @@ public sealed class WarehouseConfiguration : IEntityTypeConfiguration<Warehouse>
     {
         builder.ToTable("Warehouses", table =>
         {
+            table.UseSqlOutputClause(false);
             table.HasCheckConstraint("CK_Warehouses_Code", "LEN(LTRIM(RTRIM([Code]))) > 0");
             table.HasCheckConstraint("CK_Warehouses_Name", "LEN(LTRIM(RTRIM([Name]))) > 0");
         });

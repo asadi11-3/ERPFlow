@@ -26,6 +26,7 @@ public static class ApiEndpoints
     public static IEndpointRouteBuilder MapApiEndpoints(this IEndpointRouteBuilder endpoints)
     {
         var api = endpoints.MapGroup("/api");
+        api.MapProcurementEndpoints();
 
         api.MapPost("/auth/login", LoginAsync)
             .AllowAnonymous()

@@ -1,5 +1,6 @@
 using ERPFlow.Domain.Entities;
 using ERPFlow.Domain.Inventory;
+using ERPFlow.Domain.Procurement;
 using Microsoft.EntityFrameworkCore;
 
 namespace ERPFlow.Infrastructure.Persistence;
@@ -37,6 +38,10 @@ public sealed partial class ERPFlowDbContext(DbContextOptions<ERPFlowDbContext> 
     public DbSet<LegacyInventoryOpening> LegacyInventoryOpenings => Set<LegacyInventoryOpening>();
     public DbSet<LegacyInventoryReservationImport> LegacyInventoryReservationImports => Set<LegacyInventoryReservationImport>();
     public DbSet<InventoryAuthority> InventoryAuthorities => Set<InventoryAuthority>();
+    public DbSet<Supplier> Suppliers => Set<Supplier>();
+    public DbSet<PurchaseOrder> PurchaseOrders => Set<PurchaseOrder>();
+    public DbSet<PurchaseOrderItem> PurchaseOrderItems => Set<PurchaseOrderItem>();
+    public DbSet<PurchaseOrderHistory> PurchaseOrderHistories => Set<PurchaseOrderHistory>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

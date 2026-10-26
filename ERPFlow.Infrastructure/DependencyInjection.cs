@@ -3,6 +3,7 @@ using ERPFlow.Application.Equipment;
 using ERPFlow.Application.SalesOrders;
 using ERPFlow.Application.Service;
 using ERPFlow.Application.Inventory;
+using ERPFlow.Application.Procurement;
 using ERPFlow.Infrastructure.Persistence;
 using ERPFlow.Infrastructure.Persistence.Inventory;
 using Microsoft.EntityFrameworkCore;
@@ -35,6 +36,9 @@ public static class DependencyInjection
         services.AddScoped<IInventoryCutover, EfInventoryCutover>();
         services.AddScoped<IInventoryReconciliation, EfInventoryReconciliation>();
         services.AddScoped<IWorkflowInventory, EfWorkflowInventory>();
+        services.AddScoped<IProcurementPersistence, EfProcurementPersistence>();
+        services.AddScoped<IProcurementMasters, ProcurementMasters>();
+        services.AddScoped<IPurchaseOrderWorkflow, PurchaseOrderWorkflow>();
         return services;
     }
 }

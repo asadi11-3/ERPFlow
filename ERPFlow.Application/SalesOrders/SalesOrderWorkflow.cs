@@ -336,6 +336,7 @@ public sealed class SalesOrderWorkflow(
 
     private static void EnsureOwner(Guid ownerId, AppUser actor)
     {
+        EnsureRole(actor, UserRole.Sales, UserRole.Approver, UserRole.Technician, UserRole.Administrator);
         if (actor.Role == UserRole.Sales && ownerId != actor.Id)
         {
             throw new WorkflowAuthorizationException("Sales users can only access their own orders.");

@@ -73,6 +73,9 @@ All listed reads require authentication. This sample doesn't provide refresh tok
 | Sales orders | list, detail, create, submit, pending queue, history, approve, reject, return under `/api/sales-orders` |
 | Equipment | dispatch under `/api/equipment/sales-orders/{id}/dispatch`; list delivery notes; list and view machine assets |
 | Service | list, view, and create jobcards; request parts; complete jobcards under `/api/service/jobcards` |
+| Warehouses | list, view, create, rename, activate and commitment-safe deactivate under `/api/warehouses` |
+| Suppliers | list/search, view, create, edit, activate and deactivate under `/api/suppliers` |
+| Purchase orders | list, detail, Draft create/edit, submit, approve, reject, cancel and history under `/api/purchase-orders`; separately authorized `/operational` projections exclude commercial costs |
 
 Errors use RFC 7807 Problem Details where a body is available. Invalid input returns `400`, authentication failures return `401`, authorization failures return `403`, missing records return `404`, and invalid or duplicate workflow transitions and concurrency conflicts return `409`.
 
@@ -142,6 +145,10 @@ The WarehouseSourcePreparation migration adds nullable warehouse provenance, ret
 
 An operator-service implementation and isolated rehearsal now cover atomic conserved openings/owners, reconciliation, durable authority/version fencing and warehouse-backed Sales/Service/Equipment branches. The migration starts in Product mode; application cutover and WarehouseStock permissions remain fail-closed, without activation flags or endpoints. **No live cutover is enabled.** Read [the Phase 2C mechanism, evidence and activation blockers](docs/inventory-authority-cutover-phase2c.md) before any deployment proposal. Old Product balances are not removed, and destructive downgrade is prohibited.
 
+### KDT Phase 3 procurement backend
+
+Warehouse master management, Supplier master management and purchase-order Draft/approval/rejection/cancellation workflows are available through authenticated backend APIs. Purchasing users manage suppliers and their own POs; Approvers decide other users' POs; WarehouseOperators receive a separate cost-free operational projection. Warehouse changes are Administrator-only and deactivation checks commitments under a transaction fence. All edits/transitions require concurrency tokens. Purchase orders never change inventory or Product selling prices. See [Phase 3 contracts, authorization, migration and verification](docs/procurement-phase3.md). Receiving/GRNs, transfers and procurement screens are not implemented.
+
 Migrations add database constraints for workflow invariants, including a unique delivery-note `SalesOrderId`, unique jobcard product rows, row-version concurrency on products, and non-negative stock rules. Jobcards use a concurrency-checked `Revision` that advances on every parts request, work start, and completion, protecting completion from racing parts requests even for different products.
 
 If an existing database already contains duplicate delivery notes for one sales order, the uniqueness migration can fail. Review and reconcile those records manually before applying it. ERPFlow doesn't run automated destructive cleanup or choose which duplicate business record to delete.
@@ -172,6 +179,6 @@ SQL integration tests generate uniquely named test databases, apply migrations, 
 
 ## Limits
 
-ERPFlow is a workflow-focused portfolio application, not a full ERP suite. Purchasing, invoicing, accounting, user administration, production deployment automation, delivery confirmation, partial dispatch, and the service-part return and cancellation workflows described above are outside the implemented scope.
+ERPFlow is a workflow-focused portfolio application, not a full ERP suite. Purchase-order approval is implemented, but receiving/GRNs, invoicing, accounting, user administration, production deployment automation, delivery confirmation, partial dispatch, and the service-part return and cancellation workflows described above are outside the implemented scope.
 
 See [`docs/FRONTEND_HANDOFF.md`](docs/FRONTEND_HANDOFF.md), [`docs/openapi/erpflow-v1.json`](docs/openapi/erpflow-v1.json), and [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) for supporting detail. The generated OpenAPI snapshot is checked against the running API in integration tests.

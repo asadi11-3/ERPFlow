@@ -14,12 +14,14 @@ public sealed partial class ERPFlowDbContext
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         ValidateInventoryWrites();
+        ValidateProcurementWrites();
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 
     public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
         ValidateInventoryWrites();
+        ValidateProcurementWrites();
         return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 

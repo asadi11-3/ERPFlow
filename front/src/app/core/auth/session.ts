@@ -5,7 +5,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { API_BASE_URL } from '../config';
 
-export type Role = 'Sales' | 'Approver' | 'Administrator' | 'Technician';
+export type Role = 'Sales' | 'Approver' | 'Administrator' | 'Technician' | 'Purchasing' | 'WarehouseOperator';
 
 export interface SessionUser {
   id: string;

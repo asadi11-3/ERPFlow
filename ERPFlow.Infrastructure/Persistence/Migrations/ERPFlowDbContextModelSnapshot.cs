@@ -941,6 +941,8 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_Warehouses_Name", "LEN(LTRIM(RTRIM([Name]))) > 0");
                         });
 
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+
                     b.HasData(
                         new
                         {
@@ -990,6 +992,224 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                             t.HasCheckConstraint("CK_WarehouseStocks_Balances", "[StockOnHand] >= 0 AND [ReservedQuantity] >= 0 AND [ReservedQuantity] <= [StockOnHand]");
 
                             t.HasCheckConstraint("CK_WarehouseStocks_Sequence", "[Sequence] >= 0 AND ([Sequence] > 0 OR ([StockOnHand] = 0 AND [ReservedQuantity] = 0))");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Procurement.PurchaseOrder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("DecidedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("PONumber")
+                        .IsRequired()
+                        .HasMaxLength(48)
+                        .HasColumnType("nvarchar(48)");
+
+                    b.Property<DateTime?>("ReceivingStartedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("SupplierId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(28, 4)
+                        .HasColumnType("decimal(28,4)");
+
+                    b.Property<Guid>("WarehouseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PONumber")
+                        .IsUnique();
+
+                    b.HasIndex("SupplierId");
+
+                    b.HasIndex("CreatedByUserId", "CreatedAt");
+
+                    b.HasIndex("WarehouseId", "Status");
+
+                    b.ToTable("PurchaseOrders", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PurchaseOrders_Number", "LEN(LTRIM(RTRIM([PONumber]))) > 0");
+
+                            t.HasCheckConstraint("CK_PurchaseOrders_Receiving", "[ReceivingStartedAt] IS NULL OR [Status] IN (2,5,6,7)");
+
+                            t.HasCheckConstraint("CK_PurchaseOrders_Revision", "[Revision] > 0");
+
+                            t.HasCheckConstraint("CK_PurchaseOrders_Status", "[Status] IN (0,1,2,3,4,5,6,7)");
+
+                            t.HasCheckConstraint("CK_PurchaseOrders_Total", "[TotalAmount] >= 0");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Procurement.PurchaseOrderHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Action")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Comments")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("FromStatus")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("PurchaseOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Revision")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ToStatus")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorId");
+
+                    b.HasIndex("PurchaseOrderId", "Revision")
+                        .IsUnique();
+
+                    b.ToTable("PurchaseOrderHistories", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PurchaseOrderHistories_Action", "([Action]=0 AND [FromStatus]=0 AND [ToStatus]=1) OR ([Action]=1 AND [FromStatus]=1 AND [ToStatus]=2) OR ([Action]=2 AND [FromStatus]=1 AND [ToStatus]=3) OR ([Action]=3 AND [FromStatus] IN (0,1,2) AND [ToStatus]=4)");
+
+                            t.HasCheckConstraint("CK_PurchaseOrderHistories_Revision", "[Revision] > 0");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Procurement.PurchaseOrderItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("PurchaseOrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("UnitCost")
+                        .HasPrecision(16, 4)
+                        .HasColumnType("decimal(16,4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("PurchaseOrderId", "ProductId")
+                        .IsUnique();
+
+                    b.ToTable("PurchaseOrderItems", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PurchaseOrderItems_Cost", "[UnitCost] BETWEEN 0 AND 999999999999.9999");
+
+                            t.HasCheckConstraint("CK_PurchaseOrderItems_Quantity", "[Quantity] > 0");
+                        });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Procurement.Supplier", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Address")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("ContactName")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(320)
+                        .HasColumnType("nvarchar(320)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Phone")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("SupplierCode")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SupplierCode")
+                        .IsUnique();
+
+                    b.ToTable("Suppliers", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Suppliers_Code", "LEN(LTRIM(RTRIM([SupplierCode]))) BETWEEN 1 AND 32");
+
+                            t.HasCheckConstraint("CK_Suppliers_Name", "LEN(LTRIM(RTRIM([Name]))) > 0");
                         });
 
                     b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
@@ -1274,6 +1494,57 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("ERPFlow.Domain.Procurement.PurchaseOrder", b =>
+                {
+                    b.HasOne("ERPFlow.Domain.Entities.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERPFlow.Domain.Procurement.Supplier", null)
+                        .WithMany()
+                        .HasForeignKey("SupplierId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERPFlow.Domain.Inventory.Warehouse", null)
+                        .WithMany()
+                        .HasForeignKey("WarehouseId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Procurement.PurchaseOrderHistory", b =>
+                {
+                    b.HasOne("ERPFlow.Domain.Entities.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERPFlow.Domain.Procurement.PurchaseOrder", null)
+                        .WithMany()
+                        .HasForeignKey("PurchaseOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Procurement.PurchaseOrderItem", b =>
+                {
+                    b.HasOne("ERPFlow.Domain.Entities.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERPFlow.Domain.Procurement.PurchaseOrder", null)
+                        .WithMany("Items")
+                        .HasForeignKey("PurchaseOrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ERPFlow.Domain.Entities.Jobcard", b =>
                 {
                     b.Navigation("Items");
@@ -1284,6 +1555,11 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                     b.Navigation("Items");
 
                     b.Navigation("Reservations");
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Procurement.PurchaseOrder", b =>
+                {
+                    b.Navigation("Items");
                 });
 #pragma warning restore 612, 618
         }
