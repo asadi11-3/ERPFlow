@@ -43,6 +43,7 @@ type Tab = 'items' | 'reservations' | 'history';
           </div>
           <div class="actions">
             @if (canSubmit()) {
+              <a class="btn btn-ghost" [routerLink]="['/orders', v.order.id, 'edit']">Edit Draft</a>
               <button type="button" class="btn btn-primary" [disabled]="busy()" (click)="confirmOpen.set(true)">Submit for Approval</button>
             }
             @if (canReview()) {
@@ -209,7 +210,11 @@ export class OrderDetail {
 
   protected readonly canDispatch = computed(() => {
     const role = this.session.user()?.role;
-    return this.view()?.order.status === 2 && (role === 'Administrator' || role === 'Sales');
+    const order = this.view()?.order;
+    return order?.status === 2 && (role === 'Administrator' || role === 'Technician') &&
+      order.items.length > 0 && order.reservations.length === order.items.length &&
+      order.items.every((item) => order.reservations.some((r) =>
+        r.productId === item.productId && r.quantity === item.quantity && !r.isReleased));
   });
 
   protected readonly confirmOpen = signal(false);

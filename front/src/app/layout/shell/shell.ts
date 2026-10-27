@@ -15,7 +15,7 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
-  { label: 'Sales Orders', path: '/orders', icon: 'orders', roles: ['Sales', 'Approver', 'Administrator'] },
+  { label: 'Sales Orders', path: '/orders', icon: 'orders' },
   { label: 'Create Order', path: '/orders/new', icon: 'create', roles: ['Sales', 'Administrator'] },
   { label: 'Pending Approvals', path: '/approvals', icon: 'approvals', roles: ['Approver', 'Administrator'] },
   { label: 'Machine Assets', path: '/assets', icon: 'assets' },

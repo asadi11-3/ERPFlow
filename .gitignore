@@ -369,6 +369,5 @@ FodyWeavers.xsd
 
 # Local agent instructions
 AGENTS.md
-/front/angular.json
 /.gitignore
 /.gitignore

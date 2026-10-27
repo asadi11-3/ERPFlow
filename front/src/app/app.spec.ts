@@ -97,7 +97,7 @@ describe('App routing', () => {
     sessionStorage.setItem('erpflow.token', fakeToken({ sub: 'u3', name: 'Tariq Al-Mansoor', role: 'Technician' }));
     setup();
     const harness = await RouterTestingHarness.create();
-    await harness.navigateByUrl('/orders');
+    await harness.navigateByUrl('/approvals');
 
     expect(TestBed.inject(Router).url).toBe('/service');
   });

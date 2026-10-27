@@ -70,6 +70,12 @@ public static class ApiEndpoints
                 ISalesOrderWorkflow workflow,
                 CancellationToken ct) => workflow.GetApprovalHistoryAsync(id, ct))
             .RequireAuthorization();
+        orders.MapPut("/{id:guid}", (
+                Guid id,
+                UpdateSalesOrderCommand command,
+                ISalesOrderWorkflow workflow,
+                CancellationToken ct) => workflow.UpdateDraftAsync(id, command, ct))
+            .RequireAuthorization(ApiPolicies.Sales);
         orders.MapPost("/{id:guid}/submit", (
                 Guid id,
                 ISalesOrderWorkflow workflow,

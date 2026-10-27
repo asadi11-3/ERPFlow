@@ -15,6 +15,11 @@ public sealed record CreateSalesOrderCommand(
     Guid CustomerId,
     IReadOnlyCollection<CreateSalesOrderItem> Items);
 
+public sealed record UpdateSalesOrderCommand(
+    Guid CustomerId,
+    IReadOnlyCollection<CreateSalesOrderItem> Items,
+    byte[] RowVersion);
+
 public sealed record SalesOrderItemResult(
     Guid Id,
     Guid ProductId,
@@ -46,7 +51,10 @@ public sealed record SalesOrderResult(
     DateTime? DecidedAt,
     decimal TotalAmount,
     IReadOnlyList<SalesOrderItemResult> Items,
-    IReadOnlyList<StockReservationResult> Reservations);
+    IReadOnlyList<StockReservationResult> Reservations)
+{
+    public byte[] RowVersion { get; init; } = [];
+}
 
 public interface ISalesOrderWorkflow
 {
@@ -61,6 +69,11 @@ public interface ISalesOrderWorkflow
         CancellationToken cancellationToken = default);
 
     Task<SalesOrderResult> SubmitAsync(Guid orderId, CancellationToken cancellationToken = default);
+
+    Task<SalesOrderResult> UpdateDraftAsync(
+        Guid orderId,
+        UpdateSalesOrderCommand command,
+        CancellationToken cancellationToken = default);
 
     Task<SalesOrderResult> ApproveAsync(
         Guid orderId,

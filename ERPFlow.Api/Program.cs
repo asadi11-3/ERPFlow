@@ -23,7 +23,7 @@ if (builder.Environment.IsDevelopment())
             policy.WithOrigins(origins);
         }
 
-        policy.WithMethods("GET", "POST")
+        policy.WithMethods("GET", "POST", "PUT")
             .WithHeaders("Authorization", "Content-Type");
     }));
 }

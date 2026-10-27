@@ -42,4 +42,15 @@ public sealed class SalesOrderItem
     public decimal UnitPrice { get; private set; }
 
     public decimal LineTotal => Quantity * UnitPrice;
+
+    internal void Revise(int quantity, decimal unitPrice)
+    {
+        if (quantity <= 0 || unitPrice < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(quantity), "Quantity must be positive and price non-negative.");
+        }
+
+        Quantity = quantity;
+        UnitPrice = unitPrice;
+    }
 }

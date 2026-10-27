@@ -14,7 +14,7 @@ using Xunit;
 
 namespace ERPFlow.Tests;
 
-public sealed class EquipmentWorkflowIntegrationTests
+public sealed partial class EquipmentWorkflowIntegrationTests
 {
     [Fact]
     public async Task MigrationRejectsHistoricalDuplicateDeliveriesWithoutDeletingThem()

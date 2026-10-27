@@ -38,6 +38,8 @@ public interface ISalesOrderPersistence
 
     void AddOrder(SalesOrder order);
 
+    void MarkOrderUpdated(SalesOrder order);
+
     void AddApprovalHistory(ApprovalHistory history);
 
     Task SaveChangesAsync(CancellationToken cancellationToken = default);

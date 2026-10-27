@@ -32,7 +32,7 @@ export const routes: Routes = [
       },
       {
         path: 'orders',
-        canActivate: [roleGuard('Sales', 'Approver', 'Administrator')],
+        canActivate: [roleGuard('Sales', 'Approver', 'Technician', 'Administrator')],
         loadChildren: () => import('./feature/orders/orders.routes'),
       },
       {

@@ -7,6 +7,7 @@ ERPFlow is a portfolio ERP workflow application built with a .NET 10 Minimal API
 ### Sales Order Management
 
 - Sales and Administrator users create draft orders from active customers and catalog products. Prices come from the server.
+- Drafts, including returned orders, can be edited by their Sales owner or an Administrator using `PUT /api/sales-orders/{id}`. Send `customerId`, `items`, and the latest base64 `rowVersion` returned with the order. Edits reprice lines from the server catalog, retain approval history and closed reservations, and reserve no stock until submission. Missing or invalid versions return `400`; stale versions and edits outside Draft return `409`. Existing status values and create/submit request contracts are unchanged; `rowVersion` is an additive response field.
 - A submitted order reserves its full requested quantity and enters `PendingApproval`.
 - Approver and Administrator users can approve, reject, or return a pending order. Approval keeps its reservations. Rejection releases them. Return releases them and moves the order back to `Draft` for editing and resubmission.
 - Approval history records submission and decisions. Sales users see only their own orders. Approvers and Administrators can read all orders.
@@ -30,6 +31,7 @@ Draft -> PendingApproval -> Approved
 ### Equipment Dispatch And Delivery Notes
 
 - A Technician or Administrator can dispatch one approved order in full, once.
+- Dispatch validates order state before serial generation and accepts at most 1,000 total units and 1,000 supplied serials per order. Checked, bounded quantity accumulation prevents allocation overflow. Approved orders exceeding this limit return `400` without writes; partial dispatch remains outside scope.
 - Dispatch creates one delivery note and registers machine assets for the shipped order lines in the same transaction.
 - The order keeps its existing `Approved` status; the delivery note and closed reservations record shipment, preserving the existing order-status contract.
 - A repeat dispatch returns `409 Conflict`. For concurrent requests, one can succeed and the other returns `409`; neither creates duplicate stock movement or records. The database enforces one delivery note per `SalesOrderId`.
@@ -80,6 +82,7 @@ The Angular client in [`front/`](front) uses standalone components, lazy routes,
 
 - `/` and `/login`
 - `/orders`, `/orders/new`, and `/orders/:id`
+- `/orders/:id/edit` for owner-authorized Draft correction
 - `/approvals` and `/approvals/:id`
 - `/assets` and `/assets/:id`, including delivery-note and asset views
 - `/service`, `/service/new`, and `/service/:id`, including parts requests and completion

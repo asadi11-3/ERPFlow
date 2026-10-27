@@ -81,6 +81,45 @@ public sealed class SalesOrder
         _items.Remove(item);
     }
 
+    public void EditDraft(Guid customerId, IReadOnlyCollection<(Product Product, int Quantity)> lines)
+    {
+        EnsureDraft();
+        if (customerId == Guid.Empty)
+        {
+            throw new ArgumentException("A customer ID is required.", nameof(customerId));
+        }
+
+        ArgumentNullException.ThrowIfNull(lines);
+        if (lines.Count == 0 || lines.Select(line => line.Product.Id).Distinct().Count() != lines.Count)
+        {
+            throw new InvalidOperationException("An order requires at least one line and unique products.");
+        }
+
+        if (_reservations.Any(reservation => !reservation.IsReleased))
+        {
+            throw new InvalidOperationException("A draft cannot be edited while stock is reserved.");
+        }
+
+        var replacements = lines.Select(line =>
+            new SalesOrderItem(Id, line.Product.Id, line.Quantity, line.Product.UnitPrice)).ToArray();
+        var productIds = replacements.Select(item => item.ProductId).ToHashSet();
+        _items.RemoveAll(item => !productIds.Contains(item.ProductId));
+        foreach (var replacement in replacements)
+        {
+            var existing = _items.SingleOrDefault(item => item.ProductId == replacement.ProductId);
+            if (existing is null)
+            {
+                _items.Add(replacement);
+            }
+            else
+            {
+                existing.Revise(replacement.Quantity, replacement.UnitPrice);
+            }
+        }
+
+        CustomerId = customerId;
+    }
+
     public void Submit(IReadOnlyCollection<Product> products)
     {
         EnsureDraft();

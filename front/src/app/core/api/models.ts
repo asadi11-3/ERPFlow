@@ -38,6 +38,7 @@ export interface Reservation {
 }
 
 export interface SalesOrder {
+  readonly rowVersion: string;
   id: string;
   customerId: string;
   createdByUserId: string;

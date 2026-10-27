@@ -52,7 +52,8 @@ public sealed class EfSalesOrderPersistence(ERPFlowDbContext context) : ISalesOr
                     item.Quantity * item.UnitPrice)).ToList(),
                 order.Reservations.Select(reservation => new StockReservationResult(
                     reservation.Id, reservation.ProductId, reservation.Quantity,
-                    reservation.IsReleased, reservation.CreatedAt, reservation.ReleasedAt)).ToList()))
+                    reservation.IsReleased, reservation.CreatedAt, reservation.ReleasedAt)).ToList())
+                { RowVersion = order.RowVersion })
             .ToListAsync(cancellationToken);
 
         return new SalesOrderPage(items, page, pageSize, totalCount, totalPages);
@@ -137,6 +138,9 @@ public sealed class EfSalesOrderPersistence(ERPFlowDbContext context) : ISalesOr
             .ToListAsync(cancellationToken);
 
     public void AddOrder(SalesOrder order) => context.SalesOrders.Add(order);
+
+    public void MarkOrderUpdated(SalesOrder order) =>
+        context.Entry(order).Property(entity => entity.Status).IsModified = true;
 
     public void AddApprovalHistory(ApprovalHistory history) =>
         context.ApprovalHistories.Add(history);

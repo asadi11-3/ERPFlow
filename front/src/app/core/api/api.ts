@@ -121,6 +121,10 @@ export class Api {
     return this.http.post<SalesOrder>(`${BASE}/sales-orders/${id}/submit`, null).pipe(map(fixOrder));
   }
 
+  updateDraft(id: string, customerId: string, items: NewItem[], rowVersion: string): Observable<SalesOrder> {
+    return this.http.put<SalesOrder>(`${BASE}/sales-orders/${id}`, { customerId, items, rowVersion }).pipe(map(fixOrder));
+  }
+
   approve(id: string, comments: string | null): Observable<SalesOrder> {
     return this.http.post<SalesOrder>(`${BASE}/sales-orders/${id}/approve`, { comments }).pipe(map(fixOrder));
   }

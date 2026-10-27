@@ -7,6 +7,7 @@ import { Api } from '../../core/api/api';
 import { Jobcard, JOBCARD_PRIORITY, JOBCARD_STATUS } from '../../core/api/models';
 import { problemMessage } from '../../core/api/problem';
 import { Reference } from '../../core/api/reference';
+import { Session } from '../../core/auth/session';
 import { Avatar } from '../../ui/avatar/avatar';
 import { Icon } from '../../ui/icon/icon';
 import { Pill } from '../../ui/pill/pill';
@@ -31,9 +32,11 @@ const STATUS_OPTIONS: SelectOption[] = [
           <h1>Service Jobcards</h1>
           <p>Review reported faults, parts requests and completed work.</p>
         </div>
-        <a class="btn btn-primary" routerLink="/service/new">
-          <app-icon name="plus" /> New Jobcard
-        </a>
+        @if (canCreate()) {
+          <a class="btn btn-primary" routerLink="/service/new">
+            <app-icon name="plus" /> New Jobcard
+          </a>
+        }
       </header>
 
       <section class="card" aria-label="Service jobcard records">
@@ -131,6 +134,11 @@ const STATUS_OPTIONS: SelectOption[] = [
 })
 export class JobcardList {
   private readonly api = inject(Api);
+  private readonly session = inject(Session);
+  protected readonly canCreate = computed(() => {
+    const role = this.session.user()?.role;
+    return role === 'Technician' || role === 'Administrator';
+  });
   protected readonly ref = inject(Reference);
 
   protected readonly statusOptions = STATUS_OPTIONS;
