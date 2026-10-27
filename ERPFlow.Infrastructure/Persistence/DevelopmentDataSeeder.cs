@@ -22,6 +22,9 @@ public sealed class DevelopmentDataSeeder(
             return;
         }
 
+        if (await context.InventoryAuthorities.AsNoTracking().AnyAsync(x => x.Mode == ERPFlow.Domain.Inventory.InventoryAuthorityMode.Warehouse, cancellationToken))
+            throw new InvalidOperationException("Legacy Product seeding is prohibited after inventory authority cutover.");
+
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable, cancellationToken);
         var users = await context.AppUsers.ToListAsync(cancellationToken);

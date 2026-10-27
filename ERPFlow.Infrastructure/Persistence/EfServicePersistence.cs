@@ -4,6 +4,7 @@ using ERPFlow.Domain.Entities;
 using ERPFlow.Domain.Enums;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using ERPFlow.Infrastructure.Persistence.Inventory;
 
 namespace ERPFlow.Infrastructure.Persistence;
 
@@ -11,8 +12,7 @@ public sealed class EfServicePersistence(ERPFlowDbContext context) : IServicePer
 {
     public async Task<IApplicationTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
     {
-        var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
-        return new EfApplicationTransaction(transaction);
+        return await InventoryAuthoritySession.BeginAsync(context, cancellationToken);
     }
 
     public async Task<IReadOnlyList<Jobcard>> ListJobcardsAsync(

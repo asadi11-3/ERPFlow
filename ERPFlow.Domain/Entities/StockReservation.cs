@@ -2,7 +2,7 @@ namespace ERPFlow.Domain.Entities;
 
 public sealed class StockReservation
 {
-    internal StockReservation(Guid salesOrderId, Guid productId, int quantity)
+    internal StockReservation(Guid salesOrderId, Guid productId, int quantity, Guid? warehouseId = null)
     {
         if (salesOrderId == Guid.Empty)
         {
@@ -19,10 +19,12 @@ public sealed class StockReservation
             throw new ArgumentOutOfRangeException(nameof(quantity), "Quantity must be greater than zero.");
         }
 
+        if (warehouseId == Guid.Empty) throw new ArgumentException("Warehouse ID cannot be empty.", nameof(warehouseId));
         Id = Guid.NewGuid();
         SalesOrderId = salesOrderId;
         ProductId = productId;
         Quantity = quantity;
+        WarehouseId = warehouseId;
         CreatedAt = DateTime.UtcNow;
     }
 
@@ -32,10 +34,16 @@ public sealed class StockReservation
 
     public Guid ProductId { get; private set; }
 
+    public Guid? WarehouseId { get; private set; }
+
     public int Quantity { get; private set; }
 
     /// <summary>Indicates that the reservation is closed, whether released or consumed.</summary>
     public bool IsReleased { get; private set; }
+
+    public bool IsHistorical { get; private set; }
+
+    public StockReservationClosureKind? ClosureKind { get; private set; }
 
     public DateTime CreatedAt { get; private set; }
 
@@ -58,6 +66,7 @@ public sealed class StockReservation
         product.ReleaseReservedQuantity(Quantity);
         IsReleased = true;
         ReleasedAt = DateTime.UtcNow;
+        ClosureKind = StockReservationClosureKind.Released;
     }
 
     public void Consume(Product product)
@@ -77,5 +86,31 @@ public sealed class StockReservation
         product.ConsumeReservedQuantity(Quantity);
         IsReleased = true;
         ReleasedAt = DateTime.UtcNow;
+        ClosureKind = StockReservationClosureKind.Consumed;
     }
+
+    internal void Archive()
+    {
+        if (!IsReleased)
+        {
+            throw new InvalidOperationException("Only closed reservations can be archived.");
+        }
+
+        IsHistorical = true;
+    }
+
+    internal void CloseWarehouse(StockReservationClosureKind kind)
+    {
+        if (IsReleased || IsHistorical || !WarehouseId.HasValue || !Enum.IsDefined(kind))
+            throw new InvalidOperationException("Only an active exact-source warehouse reservation can close.");
+        IsReleased = true;
+        ReleasedAt = DateTime.UtcNow;
+        ClosureKind = kind;
+    }
+}
+
+public enum StockReservationClosureKind
+{
+    Released = 1,
+    Consumed = 2
 }

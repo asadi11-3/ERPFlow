@@ -8,7 +8,7 @@ public sealed class SalesOrderConfiguration : IEntityTypeConfiguration<SalesOrde
 {
     public void Configure(EntityTypeBuilder<SalesOrder> builder)
     {
-        builder.ToTable("SalesOrders");
+        builder.ToTable("SalesOrders", table => table.UseSqlOutputClause(false));
         builder.HasKey(order => order.Id);
         builder.Property(order => order.Id).ValueGeneratedNever();
 
@@ -39,6 +39,7 @@ public sealed class SalesOrderConfiguration : IEntityTypeConfiguration<SalesOrde
         builder.Navigation(order => order.Items)
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
+        builder.Ignore(order => order.ReservationHistory);
         builder.HasMany(order => order.Reservations)
             .WithOne()
             .HasForeignKey(reservation => reservation.SalesOrderId)

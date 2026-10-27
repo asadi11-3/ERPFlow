@@ -4,6 +4,7 @@ using ERPFlow.Application.SalesOrders;
 using ERPFlow.Domain.Entities;
 using ERPFlow.Domain.Enums;
 using ERPFlow.Infrastructure.Persistence;
+using ERPFlow.Infrastructure.Persistence.Inventory;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -255,7 +256,8 @@ public sealed partial class SalesOrderWorkflowIntegrationTests
     }
 
     private static SalesOrderWorkflow CreateWorkflow(ERPFlowDbContext context, Guid userId) =>
-        new(new EfSalesOrderPersistence(context), new TestCurrentUser(userId));
+        new(new EfSalesOrderPersistence(context), new TestCurrentUser(userId), new ProductAuthorityWarehouseSourcePolicy(context),
+            new EfWorkflowInventory(context, new TestCurrentUser(userId), new ProductAuthorityWriteGate()));
 
     private static async Task<SeedResult> SeedDraftOrdersAsync(
         SqlServerTestDatabase database,

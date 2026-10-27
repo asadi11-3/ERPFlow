@@ -2,7 +2,12 @@ using ERPFlow.Application.Abstractions;
 using ERPFlow.Application.Equipment;
 using ERPFlow.Application.SalesOrders;
 using ERPFlow.Application.Service;
+using ERPFlow.Application.Inventory;
+using ERPFlow.Application.Procurement;
+using ERPFlow.Application.Receiving;
+using ERPFlow.Application.Transfers;
 using ERPFlow.Infrastructure.Persistence;
+using ERPFlow.Infrastructure.Persistence.Inventory;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -25,6 +30,23 @@ public static class DependencyInjection
         services.AddScoped<IServicePersistence, EfServicePersistence>();
         services.AddScoped<IServiceWorkflow, ServiceWorkflow>();
         services.AddScoped<DevelopmentDataSeeder>();
+        services.AddSingleton<IInventoryWriteGate, ProductAuthorityWriteGate>();
+        services.AddScoped<IInventoryPosting, EfInventoryPosting>();
+        services.AddScoped<IWarehouseSourcePolicy, ProductAuthorityWarehouseSourcePolicy>();
+        services.AddScoped<ILegacyInventoryImportPreparation, EfLegacyInventoryImportPreparation>();
+        services.AddSingleton<IInventoryCutoverPermission, DisabledInventoryCutoverPermission>();
+        services.AddScoped<IInventoryCutover, EfInventoryCutover>();
+        services.AddScoped<IInventoryReconciliation, EfInventoryReconciliation>();
+        services.AddScoped<IWorkflowInventory, EfWorkflowInventory>();
+        services.AddScoped<IProcurementPersistence, EfProcurementPersistence>();
+        services.AddScoped<IProcurementMasters, ProcurementMasters>();
+        services.AddScoped<IPurchaseOrderWorkflow, PurchaseOrderWorkflow>();
+        services.AddScoped<IGoodsReceiptPersistence, EfGoodsReceiptPersistence>();
+        services.AddScoped<IGoodsReceiptWorkflow, GoodsReceiptWorkflow>();
+        services.AddScoped<IStockTransferPersistence, EfStockTransferPersistence>();
+        services.AddScoped<IStockTransferWorkflow, StockTransferWorkflow>();
+        services.AddScoped<IInventoryQueryPersistence, EfInventoryQueryPersistence>();
+        services.AddScoped<IInventoryQueryWorkflow, InventoryQueryWorkflow>();
         return services;
     }
 }

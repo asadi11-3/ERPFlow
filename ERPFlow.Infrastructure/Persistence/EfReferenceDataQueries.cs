@@ -1,5 +1,7 @@
 using ERPFlow.Application.Abstractions;
 using Microsoft.EntityFrameworkCore;
+using ERPFlow.Domain.Inventory;
+using ERPFlow.Infrastructure.Persistence.Inventory;
 
 namespace ERPFlow.Infrastructure.Persistence;
 
@@ -15,8 +17,11 @@ public sealed class EfReferenceDataQueries(ERPFlowDbContext context) : IReferenc
             .ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<ProductReference>> ListProductsAsync(
-        CancellationToken cancellationToken = default) =>
-        await context.Products
+        CancellationToken cancellationToken = default)
+    {
+        await using var transaction = await InventoryAuthoritySession.BeginAsync(context, cancellationToken);
+        var warehouse = context.ObservedInventoryAuthority == InventoryAuthorityMode.Warehouse;
+        var results = await context.Products
             .AsNoTracking()
             .OrderBy(product => product.Name)
             .Select(product => new ProductReference(
@@ -24,6 +29,10 @@ public sealed class EfReferenceDataQueries(ERPFlowDbContext context) : IReferenc
                 product.Name,
                 product.Sku,
                 product.UnitPrice,
-                product.StockOnHand - product.ReservedQuantity))
+                warehouse ? context.WarehouseStocks.Where(stock => stock.ProductId == product.Id && stock.WarehouseId == LegacyDefaultWarehouse.Id)
+                    .Select(stock => stock.StockOnHand - stock.ReservedQuantity).FirstOrDefault() : product.StockOnHand - product.ReservedQuantity))
             .ToListAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return results;
+    }
 }

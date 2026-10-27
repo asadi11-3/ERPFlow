@@ -1,5 +1,6 @@
 using ERPFlow.Application.Abstractions;
 using ERPFlow.Application.Common;
+using ERPFlow.Application.Inventory;
 using ERPFlow.Domain.Entities;
 using ERPFlow.Domain.Enums;
 
@@ -7,7 +8,9 @@ namespace ERPFlow.Application.Equipment;
 
 public sealed class EquipmentWorkflow(
     IEquipmentPersistence persistence,
-    ICurrentUser currentUser) : IEquipmentWorkflow
+    ICurrentUser currentUser,
+    IWarehouseSourcePolicy warehouseSourcePolicy,
+    IWorkflowInventory inventory) : IEquipmentWorkflow
 {
     public const int MaxDispatchUnits = 1000;
 
@@ -59,7 +62,9 @@ public sealed class EquipmentWorkflow(
 
         try
         {
-            order.Dispatch(products);
+            await ValidateReservationOriginsAsync(order, cancellationToken);
+            if (inventory.UsesWarehouseStock) await inventory.ConsumeSalesAsync(order, cancellationToken);
+            order.Dispatch(products, inventory.UsesWarehouseStock);
         }
         catch (InvalidOperationException exception)
         {
@@ -176,5 +181,29 @@ public sealed class EquipmentWorkflow(
         }
 
         return normalized;
+    }
+
+    private async Task ValidateReservationOriginsAsync(SalesOrder order, CancellationToken cancellationToken)
+    {
+        var lines = order.Items.ToDictionary(item => item.ProductId);
+        foreach (var line in lines.Values)
+        {
+            await warehouseSourcePolicy.ResolveAsync(line.WarehouseId, cancellationToken: cancellationToken);
+        }
+
+        foreach (var reservation in order.Reservations)
+        {
+            if (!lines.TryGetValue(reservation.ProductId, out var line))
+            {
+                throw new WorkflowConflictException("Each reservation must match an order line.");
+            }
+
+            var lineWarehouseId = await warehouseSourcePolicy.ResolveAsync(line.WarehouseId, cancellationToken: cancellationToken);
+            var reservationWarehouseId = await warehouseSourcePolicy.ResolveAsync(reservation.WarehouseId, cancellationToken: cancellationToken);
+            if (lineWarehouseId != reservationWarehouseId)
+            {
+                throw new WorkflowConflictException("A reservation warehouse source must match its order line.");
+            }
+        }
     }
 }

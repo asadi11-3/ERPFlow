@@ -1,4 +1,5 @@
 using ERPFlow.Domain.Entities;
+using ERPFlow.Domain.Inventory;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -10,6 +11,7 @@ public sealed class SalesOrderItemConfiguration : IEntityTypeConfiguration<Sales
     {
         builder.ToTable("SalesOrderItems", table =>
         {
+            table.UseSqlOutputClause(false);
             table.HasCheckConstraint("CK_SalesOrderItems_Quantity", "[Quantity] > 0");
             table.HasCheckConstraint("CK_SalesOrderItems_UnitPrice", "[UnitPrice] >= 0");
         });
@@ -25,6 +27,11 @@ public sealed class SalesOrderItemConfiguration : IEntityTypeConfiguration<Sales
         builder.HasOne<Product>()
             .WithMany()
             .HasForeignKey(item => item.ProductId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne<Warehouse>()
+            .WithMany()
+            .HasForeignKey(item => item.WarehouseId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(item => new { item.SalesOrderId, item.ProductId }).IsUnique();

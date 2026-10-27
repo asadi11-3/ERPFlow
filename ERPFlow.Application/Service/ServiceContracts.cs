@@ -7,7 +7,8 @@ public sealed record JobcardItemResult(
     Guid ProductId,
     int Quantity,
     decimal UnitPrice,
-    decimal LineTotal);
+    decimal LineTotal,
+    Guid? WarehouseId);
 
 public sealed record JobcardResult(
     Guid Id,
@@ -31,7 +32,7 @@ public sealed record CreateJobcardCommand(
     string ReportedFault,
     JobcardPriority Priority);
 
-public sealed record JobcardPartRequestItem(Guid ProductId, int Quantity);
+public sealed record JobcardPartRequestItem(Guid ProductId, int Quantity, Guid? WarehouseId = null);
 
 public sealed record RequestJobcardPartsCommand(
     IReadOnlyList<JobcardPartRequestItem> Parts);

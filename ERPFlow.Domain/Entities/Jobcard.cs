@@ -71,7 +71,7 @@ public sealed class Jobcard
 
     public IReadOnlyList<JobcardItem> Items => _readOnlyItems;
 
-    public void AddPart(Product product, int quantity)
+    public void AddPart(Product product, int quantity, Guid? warehouseId = null)
     {
         ArgumentNullException.ThrowIfNull(product);
         if (Status is not (JobcardStatus.Open or JobcardStatus.PartsRequested or JobcardStatus.InProgress))
@@ -89,7 +89,7 @@ public sealed class Jobcard
             throw new InvalidOperationException("This product has already been requested on this jobcard.");
         }
 
-        _items.Add(new JobcardItem(Id, product.Id, quantity, product.UnitPrice));
+        _items.Add(new JobcardItem(Id, product.Id, quantity, product.UnitPrice, warehouseId));
         if (Status == JobcardStatus.Open)
         {
             Status = JobcardStatus.PartsRequested;

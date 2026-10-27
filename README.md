@@ -73,6 +73,12 @@ All listed reads require authentication. This sample doesn't provide refresh tok
 | Sales orders | list, detail, create, submit, pending queue, history, approve, reject, return under `/api/sales-orders` |
 | Equipment | dispatch under `/api/equipment/sales-orders/{id}/dispatch`; list delivery notes; list and view machine assets |
 | Service | list, view, and create jobcards; request parts; complete jobcards under `/api/service/jobcards` |
+| Warehouses | list, view, create, rename, activate and commitment-safe deactivate under `/api/warehouses` |
+| Suppliers | list/search, view, create, edit, activate and deactivate under `/api/suppliers` |
+| Purchase orders | list, detail, Draft create/edit, submit, approve, reject, cancel and history under `/api/purchase-orders`; separately authorized `/operational` projections exclude commercial costs |
+| Goods receipts | Draft create, list/detail, post and Draft cancellation under `/api/goods-receipts`; durable create/post replay and partial/full PO receiving |
+| Stock transfers | create/list/detail, atomic post and Draft cancellation under `/api/stock-transfers`; `Idempotency-Key` headers for create/post |
+| Operational inventory | filtered, bounded `/api/inventory/stocks` and `/api/inventory/movements`; source document references without purchasing costs |
 
 Errors use RFC 7807 Problem Details where a body is available. Invalid input returns `400`, authentication failures return `401`, authorization failures return `403`, missing records return `404`, and invalid or duplicate workflow transitions and concurrency conflicts return `409`.
 
@@ -130,6 +136,30 @@ The default client expects the API at `https://localhost:7165` and runs at `http
 
 ## Migrations And Existing Data
 
+### KDT Phase 1 foundation (dormant)
+
+The additive InventoryFoundation migration prepares Warehouse, WarehouseStock, explicit inventory reservation ownership, posting and movement tables. **Product balances remain authoritative.** No existing inventory workflow uses these tables and the registered posting gate refuses warehouse writes; there is no activation configuration flag. No live data backfill or cutover is included. See [the Phase 1 compatibility, transaction and cutover strategy](docs/inventory-foundation-phase1.md) before integrating later modules or deploying a cutover.
+
+### KDT Phase 2A/2B source and import preparation
+
+The WarehouseSourcePreparation migration adds nullable warehouse provenance, retains closed Sales reservation cycles and seeds one legacy-default warehouse metadata record. Old requests remain compatible; only the existing default bucket is accepted while Product is authoritative, with no non-default fallback. An Administrator-only internal preparation service stages reconciled opening/ownership manifests without applying inventory. See [the Phase 2A/2B compatibility, migration and preparation strategy](docs/inventory-source-preparation-phase2ab.md), especially deployment ordering and stale-manifest/cutover gates. **WarehouseStock authority is still disabled.**
+
+### KDT Phase 2C inactive atomic cutover
+
+An operator-service implementation and isolated rehearsal now cover atomic conserved openings/owners, reconciliation, durable authority/version fencing and warehouse-backed Sales/Service/Equipment branches. The migration starts in Product mode; application cutover and WarehouseStock permissions remain fail-closed, without activation flags or endpoints. **No live cutover is enabled.** Read [the Phase 2C mechanism, evidence and activation blockers](docs/inventory-authority-cutover-phase2c.md) before any deployment proposal. Old Product balances are not removed, and destructive downgrade is prohibited.
+
+### KDT Phase 3 procurement backend
+
+Warehouse master management, Supplier master management and purchase-order Draft/approval/rejection/cancellation workflows are available through authenticated backend APIs. Purchasing users manage suppliers and their own POs; Approvers decide other users' POs; WarehouseOperators receive a separate cost-free operational projection. Warehouse changes are Administrator-only and deactivation checks commitments under a transaction fence. All edits/transitions require concurrency tokens. Purchase orders never change inventory or Product selling prices. See [Phase 3 contracts, authorization, migration and verification](docs/procurement-phase3.md). Receiving was added separately in Phase 4 below; transfers and procurement screens remain outside scope.
+
+### KDT Phase 4 isolated goods receiving
+
+GRN backend workflows support Draft/Posted/Cancelled documents, multiple partial receipts, atomic PO receiving progress, exact WarehouseStock Receipt movements and durable create/post idempotency. WarehouseOperator/Administrator authorization, same-PO concurrency, over-receipt rejection and whole-command rollback are covered by real isolated SQL tests. **Production inventory gates remain closed**: receiving succeeds only with explicitly authorized completed-cutover fixture permissions. No Product balance fallback, transfers, posted reversals or Angular screens are included. See [the Phase 4 implementation and evidence](docs/goods-receipts-phase4.md).
+
+### KDT Phase 5 isolated stock transfers
+
+WarehouseOperator/Administrator workflows create immutable Draft transfers, atomically post conserved outgoing/incoming movements and cancel Drafts. Posting protects reserved stock, uses shared globally ordered warehouse/product locks, safely provisions a missing destination and persists durable create/post replay. Purchasing and Approver can read cost-free operational inventory history. **Production write/cutover gates remain disabled.** See [Phase 5 contracts, locking, migration and verification](docs/stock-transfers-phase5.md). No Angular screens, stock adjustment or other inventory modules are included.
+
 Migrations add database constraints for workflow invariants, including a unique delivery-note `SalesOrderId`, unique jobcard product rows, row-version concurrency on products, and non-negative stock rules. Jobcards use a concurrency-checked `Revision` that advances on every parts request, work start, and completion, protecting completion from racing parts requests even for different products.
 
 If an existing database already contains duplicate delivery notes for one sales order, the uniqueness migration can fail. Review and reconcile those records manually before applying it. ERPFlow doesn't run automated destructive cleanup or choose which duplicate business record to delete.
@@ -141,9 +171,11 @@ Run these from the repository root when validating a change:
 ```powershell
 dotnet restore ERPFlow.slnx
 dotnet build ERPFlow.slnx --no-restore
+$env:ERPFLOW_TEST_SQLSERVER = '(localdb)\MSSQLLocalDB'
 dotnet test ERPFlow.slnx --no-build
-dotnet ef migrations has-pending-model-changes --project ERPFlow.Infrastructure --startup-project ERPFlow.Api
 ```
+
+The migration contract test compares the current EF model with its snapshot without opening a database connection or starting the API. Development API startup applies migrations; do not use application startup or an unqualified EF startup-project command for an isolated cutover rehearsal.
 
 Frontend checks run from `front/`:
 
@@ -158,6 +190,6 @@ SQL integration tests generate uniquely named test databases, apply migrations, 
 
 ## Limits
 
-ERPFlow is a workflow-focused portfolio application, not a full ERP suite. Purchasing, invoicing, accounting, user administration, production deployment automation, delivery confirmation, partial dispatch, and the service-part return and cancellation workflows described above are outside the implemented scope.
+ERPFlow is a workflow-focused portfolio application, not a full ERP suite. Purchase-order approval, production-disabled GRN receiving and isolated stock transfers are implemented. Posted receipt/transfer reversals, stock taking/adjustment/reorder, supplier returns, invoicing, accounting, user administration, production deployment automation, delivery confirmation, partial dispatch, and service-part return/cancellation remain outside the implemented scope.
 
 See [`docs/FRONTEND_HANDOFF.md`](docs/FRONTEND_HANDOFF.md), [`docs/openapi/erpflow-v1.json`](docs/openapi/erpflow-v1.json), and [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) for supporting detail. The generated OpenAPI snapshot is checked against the running API in integration tests.

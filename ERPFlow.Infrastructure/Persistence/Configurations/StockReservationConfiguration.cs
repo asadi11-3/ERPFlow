@@ -1,4 +1,5 @@
 using ERPFlow.Domain.Entities;
+using ERPFlow.Domain.Inventory;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -9,12 +10,18 @@ public sealed class StockReservationConfiguration : IEntityTypeConfiguration<Sto
     public void Configure(EntityTypeBuilder<StockReservation> builder)
     {
         builder.ToTable("StockReservations", table =>
-            table.HasCheckConstraint("CK_StockReservations_Quantity", "[Quantity] > 0"));
+        {
+            table.UseSqlOutputClause(false);
+            table.HasCheckConstraint("CK_StockReservations_Quantity", "[Quantity] > 0");
+            table.HasCheckConstraint("CK_StockReservations_HistoricalClosed", "[IsHistorical] = 0 OR [IsReleased] = 1");
+            table.HasCheckConstraint("CK_StockReservations_ClosureKind", "[ClosureKind] IS NULL OR ([IsReleased] = 1 AND [ClosureKind] IN (1, 2))");
+        });
         builder.HasKey(reservation => reservation.Id);
         builder.Property(reservation => reservation.Id).ValueGeneratedNever();
 
         builder.Property(reservation => reservation.Quantity).IsRequired();
         builder.Property(reservation => reservation.IsReleased).IsRequired();
+        builder.Property(reservation => reservation.IsHistorical).IsRequired();
         builder.Property(reservation => reservation.CreatedAt)
             .HasPrecision(7)
             .IsRequired();
@@ -25,8 +32,14 @@ public sealed class StockReservationConfiguration : IEntityTypeConfiguration<Sto
             .HasForeignKey(reservation => reservation.ProductId)
             .OnDelete(DeleteBehavior.Restrict);
 
+        builder.HasOne<Warehouse>()
+            .WithMany()
+            .HasForeignKey(reservation => reservation.WarehouseId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasIndex(reservation => new { reservation.SalesOrderId, reservation.ProductId })
-            .IsUnique();
+            .IsUnique()
+            .HasFilter("[IsHistorical] = 0");
         builder.HasIndex(reservation => reservation.ProductId);
     }
 }

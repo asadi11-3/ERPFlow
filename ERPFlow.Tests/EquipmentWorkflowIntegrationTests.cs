@@ -5,6 +5,7 @@ using ERPFlow.Application.Equipment;
 using ERPFlow.Domain.Entities;
 using ERPFlow.Domain.Enums;
 using ERPFlow.Infrastructure.Persistence;
+using ERPFlow.Infrastructure.Persistence.Inventory;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -231,7 +232,8 @@ public sealed partial class EquipmentWorkflowIntegrationTests
     }
 
     private static EquipmentWorkflow CreateWorkflow(ERPFlowDbContext context, Guid userId) =>
-        new(new EfEquipmentPersistence(context), new TestCurrentUser(userId));
+        new(new EfEquipmentPersistence(context), new TestCurrentUser(userId), new ProductAuthorityWarehouseSourcePolicy(context),
+            new EfWorkflowInventory(context, new TestCurrentUser(userId), new ProductAuthorityWriteGate()));
 
     private static async Task<SeedResult> SeedApprovedOrderAsync(SqlServerTestDatabase database, int quantity)
     {
@@ -244,8 +246,25 @@ public sealed partial class EquipmentWorkflowIntegrationTests
         order.AddItem(product, quantity);
         order.Submit([product]);
         order.Approve(administrator.Id);
-        context.AddRange(customer, product, administrator, technician, order);
-        await context.SaveChangesAsync();
+        var hasOrigins = await context.Database.SqlQuery<int>($"SELECT COUNT(*) AS [Value] FROM sys.columns WHERE object_id=OBJECT_ID(N'SalesOrderItems') AND name=N'WarehouseId'").SingleAsync() != 0;
+        if (hasOrigins)
+        {
+            context.AddRange(customer, product, administrator, technician, order);
+            await context.SaveChangesAsync();
+        }
+        else
+        {
+            context.AddRange(customer, product, administrator, technician);
+            await context.SaveChangesAsync();
+            await context.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO SalesOrders(Id,CustomerId,CreatedByUserId,Status,CreatedAt,SubmittedAt,DecidedAt)
+                VALUES({order.Id},{customer.Id},{administrator.Id},2,{order.CreatedAt},{order.SubmittedAt},{order.DecidedAt});
+                INSERT INTO SalesOrderItems(Id,SalesOrderId,ProductId,Quantity,UnitPrice)
+                VALUES({order.Items[0].Id},{order.Id},{product.Id},{quantity},{product.UnitPrice});
+                INSERT INTO StockReservations(Id,SalesOrderId,ProductId,Quantity,IsReleased,CreatedAt)
+                VALUES({order.Reservations[0].Id},{order.Id},{product.Id},{quantity},0,{order.Reservations[0].CreatedAt});
+                """);
+        }
         return new SeedResult(order.Id, product.Id, customer.Id, technician.Id);
     }
 

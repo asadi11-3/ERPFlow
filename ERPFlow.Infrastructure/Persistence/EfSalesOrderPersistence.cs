@@ -6,6 +6,7 @@ using ERPFlow.Domain.Entities;
 using ERPFlow.Domain.Enums;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using ERPFlow.Infrastructure.Persistence.Inventory;
 
 namespace ERPFlow.Infrastructure.Persistence;
 
@@ -49,10 +50,11 @@ public sealed class EfSalesOrderPersistence(ERPFlowDbContext context) : ISalesOr
                 order.Items.Sum(item => item.Quantity * item.UnitPrice),
                 order.Items.Select(item => new SalesOrderItemResult(
                     item.Id, item.ProductId, item.Quantity, item.UnitPrice,
-                    item.Quantity * item.UnitPrice)).ToList(),
-                order.Reservations.Select(reservation => new StockReservationResult(
+                    item.Quantity * item.UnitPrice, item.WarehouseId)).ToList(),
+                order.Reservations.Where(reservation => !reservation.IsHistorical).Select(reservation => new StockReservationResult(
                     reservation.Id, reservation.ProductId, reservation.Quantity,
-                    reservation.IsReleased, reservation.CreatedAt, reservation.ReleasedAt)).ToList())
+                    reservation.IsReleased, reservation.CreatedAt, reservation.ReleasedAt,
+                    reservation.WarehouseId)).ToList())
                 { RowVersion = order.RowVersion })
             .ToListAsync(cancellationToken);
 
@@ -62,10 +64,7 @@ public sealed class EfSalesOrderPersistence(ERPFlowDbContext context) : ISalesOr
     public async Task<IApplicationTransaction> BeginTransactionAsync(
         CancellationToken cancellationToken = default)
     {
-        var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.ReadCommitted,
-            cancellationToken);
-        return new EfApplicationTransaction(transaction);
+        return await InventoryAuthoritySession.BeginAsync(context, cancellationToken);
     }
 
     public Task<Customer?> FindCustomerAsync(

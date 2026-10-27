@@ -2,7 +2,7 @@ using ERPFlow.Domain.Enums;
 
 namespace ERPFlow.Application.SalesOrders;
 
-public sealed record CreateSalesOrderItem(Guid ProductId, int Quantity);
+public sealed record CreateSalesOrderItem(Guid ProductId, int Quantity, Guid? WarehouseId = null);
 
 public sealed record SalesOrderPage(
     IReadOnlyList<SalesOrderResult> Items,
@@ -25,7 +25,8 @@ public sealed record SalesOrderItemResult(
     Guid ProductId,
     int Quantity,
     decimal UnitPrice,
-    decimal LineTotal);
+    decimal LineTotal,
+    Guid? WarehouseId);
 
 public sealed record StockReservationResult(
     Guid Id,
@@ -33,7 +34,8 @@ public sealed record StockReservationResult(
     int Quantity,
     bool IsReleased,
     DateTime CreatedAt,
-    DateTime? ReleasedAt);
+    DateTime? ReleasedAt,
+    Guid? WarehouseId);
 
 public sealed record ApprovalHistoryResult(
     ApprovalAction Action,

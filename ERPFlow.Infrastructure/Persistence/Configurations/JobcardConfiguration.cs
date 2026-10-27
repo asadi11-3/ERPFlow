@@ -8,7 +8,7 @@ public sealed class JobcardConfiguration : IEntityTypeConfiguration<Jobcard>
 {
     public void Configure(EntityTypeBuilder<Jobcard> builder)
     {
-        builder.ToTable("Jobcards");
+        builder.ToTable("Jobcards", table => table.UseSqlOutputClause(false));
         builder.HasKey(j => j.Id);
         builder.Property(j => j.Id).ValueGeneratedNever();
 
