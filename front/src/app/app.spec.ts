@@ -14,6 +14,8 @@ const apiStub = {
   products: () => of([]),
   pending: () => of([]),
   orders: (page: number, pageSize: number) => of({ items: [], page, pageSize, totalCount: 0, totalPages: 1 }),
+  jobcards: () => of([]),
+  machineAssets: () => of([]),
 };
 
 describe('App routing', () => {
@@ -72,12 +74,31 @@ describe('App routing', () => {
     expect((harness.fixture.nativeElement as HTMLElement).querySelector('h1')?.textContent).toContain('Pending Approvals');
   });
 
-  it('keeps a signed-in user away from the login page', async () => {
-    sessionStorage.setItem('erpflow.token', fakeToken({ sub: 'u1', name: 'Ada Lovelace', role: 'Sales' }));
+  it('sends a technician to the field service queue', async () => {
+    sessionStorage.setItem('erpflow.token', fakeToken({ sub: 'u3', name: 'Tariq Al-Mansoor', role: 'Technician' }));
+    setup();
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/');
+
+    expect(TestBed.inject(Router).url).toBe('/service');
+    expect((harness.fixture.nativeElement as HTMLElement).querySelector('h1')?.textContent).toContain('Service Jobcards');
+  });
+
+  it('keeps a signed-in user away from the login page and redirects by role', async () => {
+    sessionStorage.setItem('erpflow.token', fakeToken({ sub: 'u3', name: 'Tariq Al-Mansoor', role: 'Technician' }));
     setup();
     const harness = await RouterTestingHarness.create();
     await harness.navigateByUrl('/login');
 
-    expect(TestBed.inject(Router).url).toBe('/orders');
+    expect(TestBed.inject(Router).url).toBe('/service');
+  });
+
+  it('redirects unauthorized roles when navigating to guarded pages', async () => {
+    sessionStorage.setItem('erpflow.token', fakeToken({ sub: 'u3', name: 'Tariq Al-Mansoor', role: 'Technician' }));
+    setup();
+    const harness = await RouterTestingHarness.create();
+    await harness.navigateByUrl('/orders');
+
+    expect(TestBed.inject(Router).url).toBe('/service');
   });
 });

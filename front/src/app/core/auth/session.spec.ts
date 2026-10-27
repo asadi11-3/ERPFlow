@@ -5,7 +5,7 @@ import { provideRouter } from '@angular/router';
 
 import { API_BASE_URL } from '../config';
 import { fakeToken } from './fake-token';
-import { Session } from './session';
+import { homeForRole, Session } from './session';
 
 describe('Session', () => {
   beforeEach(() => {
@@ -36,5 +36,13 @@ describe('Session', () => {
     expect(session.isActive()).toBe(false);
     expect(session.user()).toBeNull();
     expect(sessionStorage.getItem('erpflow.token')).toBeNull();
+  });
+
+  it('homeForRole maps roles to expected root paths', () => {
+    expect(homeForRole('Approver')).toBe('/approvals');
+    expect(homeForRole('Technician')).toBe('/service');
+    expect(homeForRole('Sales')).toBe('/orders');
+    expect(homeForRole('Administrator')).toBe('/orders');
+    expect(homeForRole(null)).toBe('/orders');
   });
 });

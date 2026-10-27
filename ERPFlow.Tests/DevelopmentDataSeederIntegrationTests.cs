@@ -204,6 +204,14 @@ public sealed class DevelopmentDataSeederIntegrationTests : IAsyncLifetime
         Assert.Equal(0, await context.SalesOrders.CountAsync());
     }
 
+    [Fact]
+    public async Task SeederSeedsInProductionWhenAllowProductionIsTrue()
+    {
+        await Seeder().SeedAsync("Production", Password, allowProduction: true);
+        Assert.Equal(6, await context.AppUsers.CountAsync());
+        Assert.Equal(10, await context.Customers.CountAsync());
+    }
+
     private async Task AssertReservationConsistencyAsync()
     {
         var activeStatuses = new[]

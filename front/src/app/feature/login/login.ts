@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 
-import { Session } from '../../core/auth/session';
+import { homeForRole, Session } from '../../core/auth/session';
 import { Icon } from '../../ui/icon/icon';
 import { Logo } from '../../ui/logo/logo';
 
@@ -44,7 +44,12 @@ export class Login {
     try {
       await this.session.login(this.email().trim(), this.password());
       const returnUrl = this.route.snapshot.queryParamMap.get('returnUrl');
-      await this.router.navigateByUrl(returnUrl?.startsWith('/') && !returnUrl.startsWith('//') ? returnUrl : '/');
+      const defaultHome = homeForRole(this.session.user()?.role);
+      const target =
+        returnUrl && returnUrl.startsWith('/') && !returnUrl.startsWith('//') && returnUrl !== '/'
+          ? returnUrl
+          : defaultHome;
+      await this.router.navigateByUrl(target);
     } catch (error) {
       this.error.set(messageFor(error));
     } finally {

@@ -129,15 +129,17 @@ if (app.Environment.IsDevelopment())
         options.SwaggerEndpoint("/openapi/v1.json", "ERPFlow API v1");
         options.EnablePersistAuthorization();
     });
+}
 
-    await using var scope = app.Services.CreateAsyncScope();
+await using (var scope = app.Services.CreateAsyncScope())
+{
     var context = scope.ServiceProvider.GetRequiredService<ERPFlowDbContext>();
     await context.Database.MigrateAsync();
-    var demoPassword = builder.Configuration["DemoUsers:Password"];
+    var demoPassword = builder.Configuration["DemoUsers:Password"] ?? DevelopmentDataSeeder.DefaultPassword;
     if (!string.IsNullOrWhiteSpace(demoPassword))
     {
         await scope.ServiceProvider.GetRequiredService<DevelopmentDataSeeder>()
-            .SeedAsync(app.Environment.EnvironmentName, demoPassword);
+            .SeedAsync(app.Environment.EnvironmentName, demoPassword, allowProduction: true);
     }
 }
 

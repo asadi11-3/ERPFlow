@@ -1,8 +1,8 @@
 import { inject } from '@angular/core';
 import { Routes } from '@angular/router';
 
-import { authGuard, guestGuard } from './core/auth/guards';
-import { Session } from './core/auth/session';
+import { authGuard, guestGuard, roleGuard } from './core/auth/guards';
+import { homeForRole, Session } from './core/auth/session';
 import { Shell } from './layout/shell/shell';
 
 export const routes: Routes = [
@@ -27,13 +27,19 @@ export const routes: Routes = [
         pathMatch: 'full',
         redirectTo: () => {
           const role = inject(Session).user()?.role;
-          if (role === 'Approver') return 'approvals';
-          if (role === 'Technician') return 'service';
-          return 'orders';
+          return homeForRole(role).replace(/^\//, '');
         },
       },
-      { path: 'orders', loadChildren: () => import('./feature/orders/orders.routes') },
-      { path: 'approvals', loadChildren: () => import('./feature/approvals/approvals.routes') },
+      {
+        path: 'orders',
+        canActivate: [roleGuard('Sales', 'Approver', 'Administrator')],
+        loadChildren: () => import('./feature/orders/orders.routes'),
+      },
+      {
+        path: 'approvals',
+        canActivate: [roleGuard('Approver', 'Administrator')],
+        loadChildren: () => import('./feature/approvals/approvals.routes'),
+      },
       { path: 'assets', loadChildren: () => import('./feature/assets/assets.routes') },
       { path: 'service', loadChildren: () => import('./feature/service/service.routes') },
       { path: 'reference', loadChildren: () => import('./feature/reference/reference.routes') },

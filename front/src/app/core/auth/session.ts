@@ -7,6 +7,19 @@ import { API_BASE_URL } from '../config';
 
 export type Role = 'Sales' | 'Approver' | 'Administrator' | 'Technician';
 
+export function homeForRole(role?: Role | null): string {
+  switch (role) {
+    case 'Approver':
+      return '/approvals';
+    case 'Technician':
+      return '/service';
+    case 'Sales':
+    case 'Administrator':
+    default:
+      return '/orders';
+  }
+}
+
 export interface SessionUser {
   id: string;
   name: string;

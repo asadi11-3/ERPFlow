@@ -13,9 +13,11 @@ public sealed class DevelopmentDataSeeder(
     ERPFlowDbContext context,
     ILogger<DevelopmentDataSeeder> logger)
 {
-    public async Task SeedAsync(string environmentName, string password, CancellationToken cancellationToken = default)
+    public const string DefaultPassword = "Demo#Passw0rd!2026";
+
+    public async Task SeedAsync(string environmentName, string password = DefaultPassword, bool allowProduction = false, CancellationToken cancellationToken = default)
     {
-        if (!string.Equals(environmentName, "Development", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(password))
+        if ((!string.Equals(environmentName, "Development", StringComparison.OrdinalIgnoreCase) && !allowProduction) || string.IsNullOrWhiteSpace(password))
         {
             return;
         }
@@ -24,23 +26,24 @@ public sealed class DevelopmentDataSeeder(
             IsolationLevel.Serializable, cancellationToken);
         var users = await context.AppUsers.ToListAsync(cancellationToken);
         var hasher = new PasswordHasher<object>();
-        var definitions = new[]
+        var definitions = new (string Name, string Email, UserRole Role, string Password)[]
         {
-            ("ERP Administrator", "admin@erpflow.local", UserRole.Administrator),
-            ("Maya Haddad", "sales@erpflow.local", UserRole.Sales),
-            ("Order Approver", "approver@erpflow.local", UserRole.Approver),
-            ("Omar Nasser", "sales2@erpflow.local", UserRole.Sales),
-            ("Leila Mansour", "sales3@erpflow.local", UserRole.Sales),
-            ("Tariq Al-Mansoor", "tech@erpflow.local", UserRole.Technician)
+            ("ERP Administrator", "admin@erpflow.local", UserRole.Administrator, DefaultPassword),
+            ("Maya Haddad", "sales@erpflow.local", UserRole.Sales, DefaultPassword),
+            ("Order Approver", "approver@erpflow.local", UserRole.Approver, DefaultPassword),
+            ("Omar Nasser", "sales2@erpflow.local", UserRole.Sales, DefaultPassword),
+            ("Leila Mansour", "sales3@erpflow.local", UserRole.Sales, DefaultPassword),
+            ("Tariq Al-Mansoor", "tech@erpflow.local", UserRole.Technician, DefaultPassword)
         };
-        foreach (var (name, email, role) in definitions)
+        foreach (var (name, email, role, defaultAccountPassword) in definitions)
         {
             if (users.Any(user => string.Equals(user.Email, email, StringComparison.OrdinalIgnoreCase)))
             {
                 continue;
             }
 
-            var user = new AppUser(name, email, role, hasher.HashPassword(new object(), password));
+            var accountPassword = string.IsNullOrWhiteSpace(password) ? defaultAccountPassword : password;
+            var user = new AppUser(name, email, role, hasher.HashPassword(new object(), accountPassword));
             users.Add(user);
             context.AppUsers.Add(user);
         }

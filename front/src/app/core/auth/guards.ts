@@ -1,7 +1,7 @@
 import { inject } from '@angular/core';
 import { CanActivateFn, Router } from '@angular/router';
 
-import { Role, Session } from './session';
+import { homeForRole, Role, Session } from './session';
 
 export const authGuard: CanActivateFn = (_route, state) =>
   inject(Session).isActive()
@@ -11,12 +11,17 @@ export const authGuard: CanActivateFn = (_route, state) =>
 export const guestGuard: CanActivateFn = () => {
   const session = inject(Session);
   if (!session.isActive()) return true;
-  return inject(Router).createUrlTree([session.user()?.role === 'Approver' ? '/approvals' : '/orders']);
+  return inject(Router).createUrlTree([homeForRole(session.user()?.role)]);
 };
 
 export const roleGuard =
   (...roles: Role[]): CanActivateFn =>
   () => {
-    const role = inject(Session).user()?.role;
-    return role && roles.includes(role) ? true : inject(Router).createUrlTree(['/']);
+    const session = inject(Session);
+    if (!session.isActive()) {
+      return inject(Router).createUrlTree(['/login']);
+    }
+    const role = session.user()?.role;
+    if (role && roles.includes(role)) return true;
+    return inject(Router).createUrlTree([homeForRole(role)]);
   };
