@@ -63,6 +63,8 @@ builder.Services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSch
 });
 builder.Services.AddAuthorization(options =>
 {
+    options.AddPolicy(StockTransferEndpoints.Policy, policy => policy.RequireRole(UserRole.Administrator.ToString(), UserRole.WarehouseOperator.ToString()));
+    options.AddPolicy(InventoryQueryEndpoints.Policy, policy => policy.RequireRole(UserRole.Administrator.ToString(), UserRole.WarehouseOperator.ToString(), UserRole.Purchasing.ToString(), UserRole.Approver.ToString()));
     options.AddPolicy(GoodsReceiptEndpoints.Policy, policy => policy.RequireRole(UserRole.Administrator.ToString(), UserRole.WarehouseOperator.ToString()));
     options.AddPolicy(ProcurementPolicies.Administrator, policy => policy.RequireRole(UserRole.Administrator.ToString()));
     options.AddPolicy(ProcurementPolicies.Write, policy => policy.RequireRole(UserRole.Administrator.ToString(), UserRole.Purchasing.ToString()));

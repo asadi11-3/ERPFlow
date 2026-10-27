@@ -19,6 +19,7 @@ public interface IGoodsReceiptPersistence
     Task SaveAsync(CancellationToken ct);
     Task AdmitReceivingAsync(GoodsReceipt receipt, byte[] orderVersion, Guid actor, CancellationToken ct);
     Task EnterPostingScopeAsync(Guid receiptId, CancellationToken ct);
+    Task LockStocksAsync(GoodsReceipt receipt, CancellationToken ct);
     Task FinalizePostingAsync(GoodsReceipt receipt, byte[] receiptVersion, Guid actor, CancellationToken ct);
     void AddCommand(GoodsReceiptCommand command);
     Task<GoodsReceiptResult> ResultAsync(Guid id, CancellationToken ct);

@@ -16,6 +16,7 @@ public sealed partial class ERPFlowDbContext
         ValidateInventoryWrites();
         ValidateProcurementWrites();
         ValidateReceivingWrites();
+        ValidateTransferWrites();
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 
@@ -24,6 +25,7 @@ public sealed partial class ERPFlowDbContext
         ValidateInventoryWrites();
         ValidateProcurementWrites();
         ValidateReceivingWrites();
+        ValidateTransferWrites();
         return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 

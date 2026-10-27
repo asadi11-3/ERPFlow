@@ -34,12 +34,7 @@ public sealed partial class EfInventoryPosting
         if (replay is not null) return replay;
         if (!await context.Warehouses.AsNoTracking().AnyAsync(x => x.Id == header.WarehouseId && x.IsActive, cancellationToken))
             throw new WorkflowConflictException("The receipt destination warehouse is inactive.");
-        var resource = $"ERPFlow.Inventory.Stock.{header.WarehouseId:N}.{item.ProductId:N}";
-        await context.Database.ExecuteSqlInterpolatedAsync($"""
-            DECLARE @result int;
-            EXEC @result=sys.sp_getapplock @Resource={resource}, @LockMode=N'Exclusive', @LockOwner=N'Transaction', @LockTimeout=30000;
-            IF @result<0 THROW 51000, 'Receipt stock lock could not be acquired.', 1;
-            """, cancellationToken);
+        await InventoryStockLocks.AcquireAsync(context, [(header.WarehouseId, item.ProductId)], cancellationToken);
         var stock = await context.WarehouseStocks.FromSqlInterpolated($"""
             SELECT * FROM WarehouseStocks WITH (UPDLOCK,HOLDLOCK) WHERE WarehouseId={header.WarehouseId} AND ProductId={item.ProductId}
             """).SingleOrDefaultAsync(cancellationToken);

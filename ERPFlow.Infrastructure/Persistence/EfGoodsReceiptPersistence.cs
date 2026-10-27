@@ -77,6 +77,8 @@ public sealed partial class EfGoodsReceiptPersistence(ERPFlowDbContext context) 
             throw new WorkflowConflictException("GRN changes require a completed-cutover fenced transaction.");
         await context.Database.ExecuteSqlInterpolatedAsync($"EXEC sys.sp_set_session_context @key=N'ERPFlow.GRN', @value={receiptId};", ct);
     }
+    public Task LockStocksAsync(GoodsReceipt receipt, CancellationToken ct) =>
+        InventoryStockLocks.AcquireAsync(context, receipt.Items.Select(x => (receipt.WarehouseId, x.ProductId)), ct);
     public Task AdmitReceivingAsync(GoodsReceipt receipt, byte[] orderVersion, Guid actor, CancellationToken ct) => ExecuteAsync($"""
         EXEC dbo.AdmitGoodsReceipt @ReceiptId={receipt.Id}, @OrderVersion={orderVersion}, @ActorId={actor};
         """, ct);

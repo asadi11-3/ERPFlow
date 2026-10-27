@@ -68,6 +68,7 @@ public sealed class GoodsReceiptWorkflow(IGoodsReceiptPersistence persistence, I
         ProcurementAccess.Domain(() => { receipt.EnsurePostable(); return order.ValidateReceipt(receipt.Items.Select(x => (x.PurchaseOrderItemId, x.Quantity)).ToArray()); });
         await persistence.EnsureSourcesAsync(order, ct);
         await persistence.EnterPostingScopeAsync(receipt.Id, ct);
+        await persistence.LockStocksAsync(receipt, ct);
         foreach (var item in receipt.Items.OrderBy(x => x.ProductId))
             await posting.PostReceiptAsync(new(item.Id, $"grn:{receipt.Id:N}:{item.Id:N}"), ct);
         receipt.Post(actor);

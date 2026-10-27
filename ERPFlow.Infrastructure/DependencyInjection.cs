@@ -5,6 +5,7 @@ using ERPFlow.Application.Service;
 using ERPFlow.Application.Inventory;
 using ERPFlow.Application.Procurement;
 using ERPFlow.Application.Receiving;
+using ERPFlow.Application.Transfers;
 using ERPFlow.Infrastructure.Persistence;
 using ERPFlow.Infrastructure.Persistence.Inventory;
 using Microsoft.EntityFrameworkCore;
@@ -42,6 +43,10 @@ public static class DependencyInjection
         services.AddScoped<IPurchaseOrderWorkflow, PurchaseOrderWorkflow>();
         services.AddScoped<IGoodsReceiptPersistence, EfGoodsReceiptPersistence>();
         services.AddScoped<IGoodsReceiptWorkflow, GoodsReceiptWorkflow>();
+        services.AddScoped<IStockTransferPersistence, EfStockTransferPersistence>();
+        services.AddScoped<IStockTransferWorkflow, StockTransferWorkflow>();
+        services.AddScoped<IInventoryQueryPersistence, EfInventoryQueryPersistence>();
+        services.AddScoped<IInventoryQueryWorkflow, InventoryQueryWorkflow>();
         return services;
     }
 }

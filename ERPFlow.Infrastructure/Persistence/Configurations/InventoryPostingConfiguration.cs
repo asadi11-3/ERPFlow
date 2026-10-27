@@ -1,6 +1,7 @@
 using ERPFlow.Domain.Entities;
 using ERPFlow.Domain.Inventory;
 using ERPFlow.Domain.Receiving;
+using ERPFlow.Domain.Transfers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -13,7 +14,7 @@ public sealed class InventoryPostingConfiguration : IEntityTypeConfiguration<Inv
         builder.ToTable("InventoryPostings", table =>
         {
             table.UseSqlOutputClause(false);
-            table.HasCheckConstraint("CK_InventoryPostings_Kind", "([Kind]=0 AND [ReservationId] IS NULL AND [GoodsReceiptItemId] IS NULL) OR ([Kind] IN (1,2,3) AND [ReservationId] IS NOT NULL AND [GoodsReceiptItemId] IS NULL) OR ([Kind]=4 AND [ReservationId] IS NULL AND [GoodsReceiptItemId] IS NOT NULL)");
+            table.HasCheckConstraint("CK_InventoryPostings_Kind", "([Kind]=0 AND [ReservationId] IS NULL AND [GoodsReceiptItemId] IS NULL AND [StockTransferItemId] IS NULL) OR ([Kind] IN (1,2,3) AND [ReservationId] IS NOT NULL AND [GoodsReceiptItemId] IS NULL AND [StockTransferItemId] IS NULL) OR ([Kind]=4 AND [ReservationId] IS NULL AND [GoodsReceiptItemId] IS NOT NULL AND [StockTransferItemId] IS NULL) OR ([Kind] IN (5,6) AND [ReservationId] IS NULL AND [GoodsReceiptItemId] IS NULL AND [StockTransferItemId] IS NOT NULL)");
             table.HasCheckConstraint("CK_InventoryPostings_Key", "LEN(LTRIM(RTRIM([IdempotencyKey]))) > 0");
         });
         builder.HasKey(x => x.Id);
@@ -26,5 +27,7 @@ public sealed class InventoryPostingConfiguration : IEntityTypeConfiguration<Inv
         builder.HasOne<InventoryReservation>().WithMany().HasForeignKey(x => x.ReservationId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<GoodsReceiptItem>().WithMany().HasForeignKey(x => x.GoodsReceiptItemId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(x => x.GoodsReceiptItemId).IsUnique().HasFilter("[GoodsReceiptItemId] IS NOT NULL");
+        builder.HasOne<StockTransferItem>().WithMany().HasForeignKey(x => x.StockTransferItemId).OnDelete(DeleteBehavior.Restrict);
+        builder.HasIndex(x => new { x.StockTransferItemId, x.Kind }).IsUnique().HasFilter("[StockTransferItemId] IS NOT NULL");
     }
 }

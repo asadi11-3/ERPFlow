@@ -6,7 +6,12 @@ public interface IInventoryPosting
 {
     Task<InventoryPostingResult> PostAsync(InventoryPostingRequest request, CancellationToken cancellationToken = default);
     Task<InventoryPostingResult> PostReceiptAsync(InventoryReceiptRequest request, CancellationToken cancellationToken = default);
+    Task<InventoryTransferResult> PostTransferAsync(InventoryTransferRequest request, CancellationToken cancellationToken = default);
 }
+
+public sealed record InventoryTransferRequest(Guid StockTransferId);
+public sealed record InventoryTransferItemResult(Guid StockTransferItemId, InventoryPostingResult Source, InventoryPostingResult Destination);
+public sealed record InventoryTransferResult(IReadOnlyList<InventoryTransferItemResult> Items);
 
 public sealed record InventoryReceiptRequest(Guid GoodsReceiptItemId, string IdempotencyKey);
 

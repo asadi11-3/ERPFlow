@@ -77,6 +77,8 @@ All listed reads require authentication. This sample doesn't provide refresh tok
 | Suppliers | list/search, view, create, edit, activate and deactivate under `/api/suppliers` |
 | Purchase orders | list, detail, Draft create/edit, submit, approve, reject, cancel and history under `/api/purchase-orders`; separately authorized `/operational` projections exclude commercial costs |
 | Goods receipts | Draft create, list/detail, post and Draft cancellation under `/api/goods-receipts`; durable create/post replay and partial/full PO receiving |
+| Stock transfers | create/list/detail, atomic post and Draft cancellation under `/api/stock-transfers`; `Idempotency-Key` headers for create/post |
+| Operational inventory | filtered, bounded `/api/inventory/stocks` and `/api/inventory/movements`; source document references without purchasing costs |
 
 Errors use RFC 7807 Problem Details where a body is available. Invalid input returns `400`, authentication failures return `401`, authorization failures return `403`, missing records return `404`, and invalid or duplicate workflow transitions and concurrency conflicts return `409`.
 
@@ -154,6 +156,10 @@ Warehouse master management, Supplier master management and purchase-order Draft
 
 GRN backend workflows support Draft/Posted/Cancelled documents, multiple partial receipts, atomic PO receiving progress, exact WarehouseStock Receipt movements and durable create/post idempotency. WarehouseOperator/Administrator authorization, same-PO concurrency, over-receipt rejection and whole-command rollback are covered by real isolated SQL tests. **Production inventory gates remain closed**: receiving succeeds only with explicitly authorized completed-cutover fixture permissions. No Product balance fallback, transfers, posted reversals or Angular screens are included. See [the Phase 4 implementation and evidence](docs/goods-receipts-phase4.md).
 
+### KDT Phase 5 isolated stock transfers
+
+WarehouseOperator/Administrator workflows create immutable Draft transfers, atomically post conserved outgoing/incoming movements and cancel Drafts. Posting protects reserved stock, uses shared globally ordered warehouse/product locks, safely provisions a missing destination and persists durable create/post replay. Purchasing and Approver can read cost-free operational inventory history. **Production write/cutover gates remain disabled.** See [Phase 5 contracts, locking, migration and verification](docs/stock-transfers-phase5.md). No Angular screens, stock adjustment or other inventory modules are included.
+
 Migrations add database constraints for workflow invariants, including a unique delivery-note `SalesOrderId`, unique jobcard product rows, row-version concurrency on products, and non-negative stock rules. Jobcards use a concurrency-checked `Revision` that advances on every parts request, work start, and completion, protecting completion from racing parts requests even for different products.
 
 If an existing database already contains duplicate delivery notes for one sales order, the uniqueness migration can fail. Review and reconcile those records manually before applying it. ERPFlow doesn't run automated destructive cleanup or choose which duplicate business record to delete.
@@ -184,6 +190,6 @@ SQL integration tests generate uniquely named test databases, apply migrations, 
 
 ## Limits
 
-ERPFlow is a workflow-focused portfolio application, not a full ERP suite. Purchase-order approval and production-disabled GRN receiving are implemented. Stock transfers, posted receipt reversals, invoicing, accounting, user administration, production deployment automation, delivery confirmation, partial dispatch, and the service-part return and cancellation workflows described above remain outside the implemented scope.
+ERPFlow is a workflow-focused portfolio application, not a full ERP suite. Purchase-order approval, production-disabled GRN receiving and isolated stock transfers are implemented. Posted receipt/transfer reversals, stock taking/adjustment/reorder, supplier returns, invoicing, accounting, user administration, production deployment automation, delivery confirmation, partial dispatch, and service-part return/cancellation remain outside the implemented scope.
 
 See [`docs/FRONTEND_HANDOFF.md`](docs/FRONTEND_HANDOFF.md), [`docs/openapi/erpflow-v1.json`](docs/openapi/erpflow-v1.json), and [`IMPLEMENTATION_PLAN.md`](IMPLEMENTATION_PLAN.md) for supporting detail. The generated OpenAPI snapshot is checked against the running API in integration tests.

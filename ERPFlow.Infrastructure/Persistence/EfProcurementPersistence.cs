@@ -7,6 +7,7 @@ using ERPFlow.Domain.Enums;
 using ERPFlow.Domain.Inventory;
 using ERPFlow.Domain.Procurement;
 using ERPFlow.Domain.Receiving;
+using ERPFlow.Domain.Transfers;
 using ERPFlow.Infrastructure.Persistence.Inventory;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -43,6 +44,7 @@ public sealed class EfProcurementPersistence(ERPFlowDbContext context) : IProcur
         if (context.Database.CurrentTransaction?.GetDbTransaction().IsolationLevel != IsolationLevel.Serializable)
             throw new InvalidOperationException("Warehouse dependency checks require an exclusive serializable transaction.");
         return await context.WarehouseStocks.AnyAsync(x => x.WarehouseId == id && (x.StockOnHand != 0 || x.ReservedQuantity != 0), ct) ||
+            await context.StockTransfers.AnyAsync(x => (x.SourceWarehouseId == id || x.DestinationWarehouseId == id) && x.Status == StockTransferStatus.Draft, ct) ||
             await context.GoodsReceipts.AnyAsync(x => x.WarehouseId == id && x.Status == GoodsReceiptStatus.Draft, ct) ||
             await context.InventoryReservations.AnyAsync(x => x.Status == InventoryReservationStatus.Active &&
                 context.WarehouseStocks.Any(s => s.Id == x.WarehouseStockId && s.WarehouseId == id), ct) ||

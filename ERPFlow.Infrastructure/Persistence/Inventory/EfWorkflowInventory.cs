@@ -20,6 +20,7 @@ public sealed class EfWorkflowInventory(ERPFlowDbContext context, ICurrentUser a
     public async Task ReserveSalesAsync(SalesOrder order, CancellationToken cancellationToken = default)
     {
         RequireWarehouse();
+        await LockSalesAsync(order, cancellationToken);
         await SaveOwnersAsync(cancellationToken);
         foreach (var reservation in order.Reservations.OrderBy(x => x.ProductId))
             await PostAsync(InventoryPostingKind.Reserve, reservation.WarehouseId, reservation.ProductId,
@@ -29,6 +30,7 @@ public sealed class EfWorkflowInventory(ERPFlowDbContext context, ICurrentUser a
     public async Task ReleaseSalesAsync(SalesOrder order, CancellationToken cancellationToken = default)
     {
         RequireWarehouse();
+        await LockSalesAsync(order, cancellationToken);
         foreach (var reservation in order.Reservations.OrderBy(x => x.ProductId))
             await PostAsync(InventoryPostingKind.Release, reservation.WarehouseId, reservation.ProductId,
                 reservation.Quantity, order.Id, null, reservation.Id, cancellationToken);
@@ -37,6 +39,7 @@ public sealed class EfWorkflowInventory(ERPFlowDbContext context, ICurrentUser a
     public async Task ConsumeSalesAsync(SalesOrder order, CancellationToken cancellationToken = default)
     {
         RequireWarehouse();
+        await LockSalesAsync(order, cancellationToken);
         foreach (var reservation in order.Reservations.OrderBy(x => x.ProductId))
             await PostAsync(InventoryPostingKind.Consume, reservation.WarehouseId, reservation.ProductId,
                 reservation.Quantity, order.Id, null, reservation.Id, cancellationToken);
@@ -45,6 +48,7 @@ public sealed class EfWorkflowInventory(ERPFlowDbContext context, ICurrentUser a
     public async Task ReservePartsAsync(Jobcard jobcard, IReadOnlyCollection<Guid> newItemIds, CancellationToken cancellationToken = default)
     {
         RequireWarehouse();
+        await LockPartsAsync(jobcard, cancellationToken);
         await SaveOwnersAsync(cancellationToken);
         foreach (var item in jobcard.Items.Where(x => newItemIds.Contains(x.Id)).OrderBy(x => x.ProductId))
             await PostAsync(InventoryPostingKind.Reserve, item.WarehouseId, item.ProductId, item.Quantity,
@@ -54,6 +58,7 @@ public sealed class EfWorkflowInventory(ERPFlowDbContext context, ICurrentUser a
     public async Task ConsumePartsAsync(Jobcard jobcard, CancellationToken cancellationToken = default)
     {
         RequireWarehouse();
+        await LockPartsAsync(jobcard, cancellationToken);
         foreach (var item in jobcard.Items.OrderBy(x => x.ProductId))
         {
             var reservation = await context.InventoryReservations.AsNoTracking()
@@ -70,6 +75,11 @@ public sealed class EfWorkflowInventory(ERPFlowDbContext context, ICurrentUser a
             throw new WorkflowConflictException("Warehouse posting requires a fenced warehouse-authority transaction.");
         gate.EnsureWarehouseWritesAllowed();
     }
+
+    private Task LockSalesAsync(SalesOrder order, CancellationToken ct) => InventoryStockLocks.AcquireAsync(context,
+        order.Reservations.Select(x => (x.WarehouseId ?? throw new WorkflowConflictException("An exact Sales source is required."), x.ProductId)), ct);
+    private Task LockPartsAsync(Jobcard jobcard, CancellationToken ct) => InventoryStockLocks.AcquireAsync(context,
+        jobcard.Items.Select(x => (x.WarehouseId ?? throw new WorkflowConflictException("An exact Service source is required."), x.ProductId)), ct);
 
     private async Task SaveOwnersAsync(CancellationToken ct)
     {

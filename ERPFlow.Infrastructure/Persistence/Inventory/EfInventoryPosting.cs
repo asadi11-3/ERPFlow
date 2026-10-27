@@ -62,6 +62,12 @@ public sealed partial class EfInventoryPosting(
     {
         var replay = await ReplayAsync(actorId, request.IdempotencyKey, hash, ct);
         if (replay is not null) return replay;
+        if (context.ObservedInventoryAuthority == InventoryAuthorityMode.Warehouse)
+        {
+            await InventoryStockLocks.AcquireAsync(context, [(request.WarehouseId, request.ProductId)], ct);
+            replay = await ReplayAsync(actorId, request.IdempotencyKey, hash, ct);
+            if (replay is not null) return replay;
+        }
         if (!await context.Warehouses.AsNoTracking().AnyAsync(x => x.Id == request.WarehouseId && x.IsActive, ct))
             throw new WorkflowConflictException("The selected warehouse does not exist or is inactive.");
         var stock = await context.WarehouseStocks.SingleOrDefaultAsync(
@@ -157,8 +163,8 @@ public sealed partial class EfInventoryPosting(
     private static void Validate(InventoryPostingRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (request.Kind == InventoryPostingKind.Receipt)
-            throw new WorkflowValidationException("Receipts require the GRN-owned posting boundary.");
+        if (request.Kind is InventoryPostingKind.Receipt or InventoryPostingKind.TransferOut or InventoryPostingKind.TransferIn)
+            throw new WorkflowValidationException("Receipts and transfers require their document-owned posting boundary.");
         if (!Enum.IsDefined(request.Kind) || request.WarehouseId == Guid.Empty || request.ProductId == Guid.Empty ||
             request.Quantity < 0 || (request.Quantity == 0 && request.Kind != InventoryPostingKind.Opening) ||
             request.ExpectedRowVersion is not { Length: 8 } || string.IsNullOrWhiteSpace(request.IdempotencyKey) ||

@@ -33,9 +33,11 @@ public sealed class WarehouseStock
             InventoryPostingKind.Release => (0, -quantity),
             InventoryPostingKind.Consume => (-quantity, -quantity),
             InventoryPostingKind.Receipt => (quantity, 0),
+            InventoryPostingKind.TransferOut => (-quantity, 0),
+            InventoryPostingKind.TransferIn => (quantity, 0),
             _ => throw new InvalidOperationException("Invalid posting kind or duplicate opening.")
         };
-        if (Sequence == 0 && kind is not (InventoryPostingKind.Opening or InventoryPostingKind.Receipt))
+        if (Sequence == 0 && kind is not (InventoryPostingKind.Opening or InventoryPostingKind.Receipt or InventoryPostingKind.TransferIn))
             throw new InvalidOperationException("An opening is required before reservation operations.");
 
         var afterOnHand = checked(StockOnHand + physical);
@@ -75,5 +77,7 @@ public enum InventoryPostingKind
     Reserve = 1,
     Release = 2,
     Consume = 3,
-    Receipt = 4
+    Receipt = 4,
+    TransferOut = 5,
+    TransferIn = 6
 }
