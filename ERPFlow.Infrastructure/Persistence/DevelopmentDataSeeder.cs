@@ -1,8 +1,14 @@
 using System.Data;
 using System.Security.Cryptography;
 using System.Text;
+using ERPFlow.Application.Abstractions;
+using ERPFlow.Application.Transfers;
 using ERPFlow.Domain.Entities;
 using ERPFlow.Domain.Enums;
+using ERPFlow.Domain.Inventory;
+using ERPFlow.Domain.Procurement;
+using ERPFlow.Domain.Transfers;
+using ERPFlow.Infrastructure.Persistence.Inventory;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -36,8 +42,11 @@ public sealed class DevelopmentDataSeeder(
             ("Order Approver", "approver@erpflow.local", UserRole.Approver, DefaultPassword),
             ("Omar Nasser", "sales2@erpflow.local", UserRole.Sales, DefaultPassword),
             ("Leila Mansour", "sales3@erpflow.local", UserRole.Sales, DefaultPassword),
-            ("Tariq Al-Mansoor", "tech@erpflow.local", UserRole.Technician, DefaultPassword)
+            ("Tariq Al-Mansoor", "tech@erpflow.local", UserRole.Technician, DefaultPassword),
+            ("Nadia Faris", "purchasing@erpflow.local", UserRole.Purchasing, DefaultPassword),
+            ("Samir Khalil", "warehouse@erpflow.local", UserRole.WarehouseOperator, DefaultPassword)
         };
+
         foreach (var (name, email, role, defaultAccountPassword) in definitions)
         {
             if (users.Any(user => string.Equals(user.Email, email, StringComparison.OrdinalIgnoreCase)))
@@ -261,6 +270,78 @@ public sealed class DevelopmentDataSeeder(
             }
         }
 
+        await SeedProcurementAsync(users, products, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+        await transaction.DisposeAsync();
+        await SeedTransfersAsync(users, products, cancellationToken);
     }
+
+    private async Task SeedProcurementAsync(List<AppUser> users, List<Product> products, CancellationToken ct)
+    {
+        await InventoryAuthoritySession.EnterAsync(context, false, ct);
+        foreach (var (code, name) in new[] { ("DEMO-MAIN", "Main distribution warehouse"), ("DEMO-SERVICE", "Service parts warehouse"), ("DEMO-ARCHIVE", "Archived demo warehouse") })
+        {
+            if (await context.Warehouses.AnyAsync(w => w.Code == code, ct)) continue;
+            var warehouse = new Warehouse(code, name);
+            if (code == "DEMO-ARCHIVE") warehouse.SetActive(false);
+            context.Warehouses.Add(warehouse);
+        }
+        foreach (var (code, name) in new[] { ("DEMO-EQUIP", "Cedar Equipment Supply"), ("DEMO-PACK", "Atlas Packaging Supply"), ("DEMO-RETIRED", "Retired demo supplier") })
+        {
+            if (await context.Suppliers.AnyAsync(s => s.SupplierCode == code, ct)) continue;
+            var supplier = new Supplier(code, name, email: $"orders@{code.ToLowerInvariant()}.example");
+            if (code == "DEMO-RETIRED") supplier.SetActive(false);
+            context.Suppliers.Add(supplier);
+        }
+        await context.SaveChangesAsync(ct);
+        var owner = users.Single(u => u.Email == "purchasing@erpflow.local");
+        var approver = users.Single(u => u.Email == "approver@erpflow.local");
+        var warehouseId = await context.Warehouses.Where(w => w.Code == "DEMO-MAIN").Select(w => w.Id).SingleAsync(ct);
+        var supplierId = await context.Suppliers.Where(s => s.SupplierCode == "DEMO-EQUIP").Select(s => s.Id).SingleAsync(ct);
+        var persistence = new EfProcurementPersistence(context);
+        for (var i = 0; i < 10; i++)
+        {
+            var id = new Guid(SHA256.HashData(Encoding.UTF8.GetBytes($"ERPFlow.Development.Purchase.v1.{i}"))[..16]);
+            if (await context.PurchaseOrders.AnyAsync(o => o.Id == id, ct)) continue;
+            var product = products.Single(p => p.Sku == (i % 2 == 0 ? "SCAN-100" : "LABEL-500"));
+            var order = new PurchaseOrder(supplierId, warehouseId, owner.Id,
+                new[] { (product.Id, 5 + i, decimal.Round(product.UnitPrice * 0.7m, 4)) },
+                "Development replenishment scenario. Receiving and posting require warehouse inventory activation.");
+            context.Entry(order).Property(o => o.Id).CurrentValue = id;
+            context.PurchaseOrders.Add(order);
+            await context.SaveChangesAsync(ct);
+            if (i < 2) continue;
+            var version = order.RowVersion.ToArray();
+            await persistence.TransitionAsync(order, order.Submit(owner.Id), version, ct);
+            if (i < 4) continue;
+            version = order.RowVersion.ToArray();
+            var history = i < 6 ? order.Approve(approver.Id, "Reviewed quantities and supplier quotation.")
+                : i < 8 ? order.Reject(approver.Id, "Supplier quotation needs revision.")
+                : order.Cancel(owner.Id, "Replenishment request withdrawn before receiving.");
+            await persistence.TransitionAsync(order, history, version, ct);
+        }
+    }
+
+    private async Task SeedTransfersAsync(List<AppUser> users, List<Product> products, CancellationToken ct)
+    {
+        var source = await context.Warehouses.Where(w => w.Code == "DEMO-MAIN").Select(w => w.Id).SingleAsync(ct);
+        var destination = await context.Warehouses.Where(w => w.Code == "DEMO-SERVICE").Select(w => w.Id).SingleAsync(ct);
+        var current = new SeedUser(users.Single(u => u.Email == "warehouse@erpflow.local").Id);
+        var gate = new ProductAuthorityWriteGate();
+        var workflow = new StockTransferWorkflow(new EfStockTransferPersistence(context), current, gate,
+            new EfInventoryPosting(context, gate, current));
+        for (var i = 0; i < 3; i++)
+        {
+            var result = await workflow.CreateAsync($"development-transfer-v1-{i}",
+                new CreateStockTransferCommand(source, destination,
+                    new[] { new StockTransferLineCommand(products.Single(p => p.Sku == "SCAN-100").Id, i + 1) }), ct);
+            if (i != 2) continue;
+            var transfer = await context.StockTransfers.AsNoTracking().SingleAsync(t => t.Id == result.Id, ct);
+            if (transfer.Status == StockTransferStatus.Draft)
+                await workflow.CancelAsync(transfer.Id, new CancelStockTransferCommand(transfer.RowVersion,
+                    "Demo transfer withdrawn before posting."), ct);
+        }
+    }
+
+    private sealed record SeedUser(Guid UserId) : ICurrentUser;
 }

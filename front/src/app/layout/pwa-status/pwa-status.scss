@@ -1,0 +1,21 @@
+:host { display: block; }
+.notice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 24px;
+  padding: 8px max(16px, env(safe-area-inset-right)) 8px max(16px, env(safe-area-inset-left));
+  background: var(--primary-soft);
+  color: var(--primary-strong);
+  border-bottom: 1px solid var(--line);
+  font-size: .875rem;
+  p { margin: 0; max-width: 75ch; }
+  .btn { flex-shrink: 0; color: inherit; }
+}
+.offline { background: var(--warn-soft); color: var(--warn-ink); padding-block: 14px; }
+.install { background: var(--surface); color: var(--ink); }
+.actions { display: flex; gap: 8px; flex-shrink: 0; }
+.confirmation { background: var(--surface); color: var(--ink); }
+@media (max-width: 600px) {
+  .notice { align-items: flex-start; flex-direction: column; padding-block: 12px; }
+}

@@ -35,11 +35,31 @@ public sealed class DevelopmentDataSeederIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task DevelopmentActivationConservesBalancesAndReplaysWithoutDuplicateOpenings()
+    {
+        await Seeder().SeedAsync("Development", Password);
+        var environment = Microsoft.AspNetCore.Builder.WebApplication.CreateBuilder(
+            new Microsoft.AspNetCore.Builder.WebApplicationOptions { EnvironmentName = "Development" }).Environment;
+        var activation = new ERPFlow.Api.DevelopmentInventory(context, environment);
+        await activation.ActivateAsync();
+        activation.EnsureWarehouseWritesAllowed();
+        Assert.Equal(2898, await context.WarehouseStocks.SumAsync(s => s.StockOnHand));
+        Assert.Equal(28, await context.WarehouseStocks.SumAsync(s => s.ReservedQuantity));
+        var movements = await context.StockMovements.CountAsync();
+        Assert.Equal(20, movements);
+        await activation.ActivateAsync();
+        Assert.Equal(movements, await context.StockMovements.CountAsync());
+        environment.EnvironmentName = "Production";
+        Assert.Throws<ERPFlow.Application.Common.WorkflowConflictException>(activation.EnsureOperatorExecutionAllowed);
+        Assert.Throws<ERPFlow.Application.Common.WorkflowConflictException>(activation.EnsureWarehouseWritesAllowed);
+    }
+
+    [Fact]
     public async Task EmptyDatabaseGetsConsistentCompleteDemoAndSecondRunPreservesIt()
     {
         await Seeder().SeedAsync("Development", Password);
         context.ChangeTracker.Clear();
-        Assert.Equal(6, await context.AppUsers.CountAsync());
+        Assert.Equal(8, await context.AppUsers.CountAsync());
         Assert.Equal(10, await context.Customers.CountAsync());
         Assert.Equal(8, await context.Customers.CountAsync(customer => customer.IsActive));
         Assert.Equal(20, await context.Products.CountAsync());
@@ -51,6 +71,19 @@ public sealed class DevelopmentDataSeederIntegrationTests : IAsyncLifetime
         Assert.Equal(14, await context.MachineAssets.CountAsync());
         Assert.Equal(2, await context.Jobcards.CountAsync());
         Assert.Single(await context.JobcardItems.ToListAsync());
+        Assert.Equal(3, await context.Warehouses.CountAsync(w => w.Code.StartsWith("DEMO-")));
+        Assert.Equal(3, await context.Suppliers.CountAsync(s => s.SupplierCode.StartsWith("DEMO-")));
+        var purchaseIds = await context.PurchaseOrders.OrderBy(o => o.Id).Select(o => o.Id).ToArrayAsync();
+        Assert.Equal(10, purchaseIds.Length);
+        var purchaseStatuses = await context.PurchaseOrders.GroupBy(o => o.Status).Select(g => g.Count()).ToArrayAsync();
+        Assert.Equal(5, purchaseStatuses.Length);
+        Assert.All(purchaseStatuses, count => Assert.Equal(2, count));
+        Assert.Equal(14, await context.PurchaseOrderHistories.CountAsync());
+        var transferIds = await context.StockTransfers.OrderBy(t => t.Id).Select(t => t.Id).ToArrayAsync();
+        Assert.Equal(3, transferIds.Length);
+        Assert.Equal(2, await context.StockTransfers.CountAsync(t => t.Status == ERPFlow.Domain.Transfers.StockTransferStatus.Draft));
+        Assert.Empty(await context.GoodsReceipts.ToListAsync());
+        Assert.Empty(await context.StockMovements.ToListAsync());
         var orders = await context.SalesOrders.Include(order => order.Items)
             .Include(order => order.Reservations).AsSplitQuery().ToListAsync();
         Assert.Equal(4, orders.Count(order => order.Status == OrderStatus.Draft));
@@ -104,6 +137,9 @@ public sealed class DevelopmentDataSeederIntegrationTests : IAsyncLifetime
             product => product.Id,
             product => new { product.StockOnHand, product.ReservedQuantity });
         await Seeder().SeedAsync("Development", "different-test-secret-must-not-replace-existing-hashes");
+        Assert.Equal(purchaseIds, await context.PurchaseOrders.OrderBy(o => o.Id).Select(o => o.Id).ToArrayAsync());
+        Assert.Equal(transferIds, await context.StockTransfers.OrderBy(t => t.Id).Select(t => t.Id).ToArrayAsync());
+        Assert.Equal(14, await context.PurchaseOrderHistories.CountAsync());
         Assert.Equal(ids, (await context.SalesOrders.Select(order => order.Id).ToArrayAsync()).Order().ToArray());
         Assert.Equal(30, await context.SalesOrderItems.CountAsync());
         Assert.Equal(23, await context.StockReservations.CountAsync());
@@ -208,7 +244,7 @@ public sealed class DevelopmentDataSeederIntegrationTests : IAsyncLifetime
     public async Task SeederSeedsInProductionWhenAllowProductionIsTrue()
     {
         await Seeder().SeedAsync("Production", Password, allowProduction: true);
-        Assert.Equal(6, await context.AppUsers.CountAsync());
+        Assert.Equal(8, await context.AppUsers.CountAsync());
         Assert.Equal(10, await context.Customers.CountAsync());
     }
 

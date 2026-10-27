@@ -1,0 +1,42 @@
+<div role="status" aria-live="polite">
+  @if (!pwa.online()) {
+    <div class="notice offline">
+      <p><strong>You are offline.</strong> Records may be out of date. Reconnect to load or save changes. Nothing is queued.</p>
+    </div>
+  }
+  @if (pwa.recoveryRequired() || pwa.updateReady()) {
+    <div class="notice">
+      <p>
+        <strong>{{ pwa.recoveryRequired() ? 'ERPFlow needs to reload.' : 'An ERPFlow update is ready.' }}</strong>
+        Finish your work before reloading.
+        @if (pwa.pendingWrites()) { A save is still in progress. }
+      </p>
+      @if (!confirmReload()) {
+        <button class="btn btn-ghost" type="button" [disabled]="!pwa.online() || pwa.pendingWrites() > 0" (click)="confirmReload.set(true)">Review reload</button>
+      }
+    </div>
+    @if (confirmReload()) {
+      <div class="notice confirmation">
+        <p id="reload-warning">Reloading loses unsaved form entries. Cancel to finish or copy them first. If a save lost its connection, check the record before trying that action again.</p>
+        <div class="actions">
+          <button class="btn btn-ghost" type="button" (click)="confirmReload.set(false)">Cancel</button>
+          <button class="btn btn-primary" type="button" aria-describedby="reload-warning" [disabled]="!pwa.online() || pwa.pendingWrites() > 0" (click)="reload()">Reload now</button>
+        </div>
+      </div>
+    }
+  } @else if (pwa.updateFailed() && pwa.online()) {
+    <div class="notice">
+      <p>Could not check or download an update. You can keep working.</p>
+      <button class="btn btn-ghost" type="button" (click)="pwa.checkForUpdate()">Retry update</button>
+    </div>
+  }
+</div>
+@if (pwa.installAvailable()) {
+  <div class="notice install">
+    <p>Open ERPFlow from your home screen. An internet connection is required for records and changes.</p>
+    <button class="btn btn-ghost" type="button" [disabled]="pwa.installing()" (click)="pwa.install()">Install ERPFlow</button>
+  </div>
+}
+@if (pwa.installFailed()) {
+  <div class="notice" role="status"><p>Installation could not open. Use your browser menu to install ERPFlow or add it to your home screen.</p></div>
+}

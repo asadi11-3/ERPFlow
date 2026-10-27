@@ -50,7 +50,7 @@ interface Line {
 
           <div class="card">
             <h2>2. Items</h2>
-            <div class="table-wrap wide">
+            <div class="table-wrap wide order-item-editor">
               <table class="table">
                 <thead>
                   <tr>
@@ -75,7 +75,7 @@ interface Line {
                           (valueChange)="setProduct(line.key, $event)"
                         />
                       </td>
-                      <td class="num" data-label="Available">{{ ref.product(line.productId)?.availableStock ?? '-' }}</td>
+                      <td class="num" data-label="Available"><span class="line-value">{{ ref.product(line.productId)?.availableStock ?? '-' }}</span></td>
                       <td class="num" data-label="Quantity">
                         <input
                           type="number"
@@ -88,8 +88,8 @@ interface Line {
                           (input)="setQuantity(line.key, $any($event.target).value)"
                         />
                       </td>
-                      <td class="num" data-label="Unit price">{{ (ref.product(line.productId)?.unitPrice ?? 0) | currency }}</td>
-                      <td class="num" data-label="Line total">{{ lineTotal(line) | currency }}</td>
+                      <td class="num" data-label="Unit price"><span class="line-value">{{ (ref.product(line.productId)?.unitPrice ?? 0) | currency }}</span></td>
+                      <td class="num" data-label="Line total"><span class="line-value">{{ lineTotal(line) | currency }}</span></td>
                       <td class="act">
                         <button
                           type="button"
@@ -179,6 +179,15 @@ interface Line {
   styles: `
     .qty { width: 88px; min-height: 44px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; font: inherit; text-align: right; }
     .qty:focus-visible { outline-offset: -2px; border-color: var(--primary); }
+    .line-value { display: flex; align-items: center; justify-content: flex-end; min-height: 44px; font-variant-numeric: tabular-nums; }
+    @container (max-width: 940px) {
+      .order-item-editor > .table tr { padding: 16px 0; gap: 16px; }
+      .order-item-editor > .table td.main { padding-right: 56px; font-weight: 400; }
+      .order-item-editor > .table td.act { top: 16px; }
+      .order-item-editor > .table td[data-label]::before { margin-bottom: 8px; }
+      .qty { width: 100%; }
+      .line-value { justify-content: flex-start; padding: 0 12px; border-radius: 10px; background: var(--tint); }
+    }
     .icon-btn { min-width: 44px; min-height: 44px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; border-radius: 10px; transition: transform 160ms var(--ease-out); }
     .icon-btn:active:not(:disabled) { transform: scale(0.97); }
     .icon-btn:disabled { opacity: 0.35; cursor: default; }

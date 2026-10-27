@@ -50,8 +50,9 @@ export class Select {
         searchField: ['label'],
         disabledField: 'disabled',
         maxOptions: null,
+        allowEmptyOption: true,
         placeholder: this.placeholder(),
-        controlInput: this.searchable() ? undefined : null,
+        controlInput: this.searchable() ? '<input type="text" autocomplete="off" size="1" />' : null,
         dropdownParent: 'body',
         onChange: (v: string) => {
           if (this.isDisabledOption(ts, v)) {
@@ -61,6 +62,7 @@ export class Select {
           }
         },
       });
+      this.el().nativeElement.setAttribute('aria-hidden', 'true');
       if (this.ariaLabel()) {
         ts.focus_node.setAttribute('aria-label', this.ariaLabel());
       }

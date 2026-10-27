@@ -16,10 +16,11 @@ import { Pagination } from '../../ui/pagination/pagination';
 import { Pill } from '../../ui/pill/pill';
 import { RowMenu } from '../../ui/row-menu/row-menu';
 import { Select, SelectOption } from '../../ui/select/select';
+import { MiddleText, RecordRow, RecordToggle } from '../../ui/table-record/table-record';
 
 @Component({
   selector: 'app-order-list',
-  imports: [RouterLink, CurrencyPipe, DatePipe, Avatar, Icon, Kpi, Pagination, Pill, RowMenu, Select],
+  imports: [RouterLink, CurrencyPipe, DatePipe, Avatar, Icon, Kpi, Pagination, Pill, RowMenu, Select, MiddleText, RecordRow, RecordToggle],
   template: `
     <section class="page">
       <header class="page-head">
@@ -80,13 +81,13 @@ import { Select, SelectOption } from '../../ui/select/select';
               </thead>
               <tbody>
                 @for (row of rows(); track row.order.id) {
-                  <tr>
+                  <tr appRecordRow>
                     <td class="main">
                       <a class="row-link" [routerLink]="['/orders', row.order.id]">{{ row.no }}</a>
                     </td>
                     <td class="span" data-label="Customer">
                       <span class="cell-customer">
-                        <app-avatar [name]="row.customer" /><span class="clip" [title]="row.customer">{{ row.customer }}</span>
+                        <app-avatar [name]="row.customer" /><app-middle-text [value]="row.customer" />
                       </span>
                     </td>
                     <td data-label="Status"><app-pill [label]="row.statusLabel" [tone]="row.statusTone" /></td>
@@ -99,6 +100,7 @@ import { Select, SelectOption } from '../../ui/select/select';
                         <a class="menu-item" role="menuitem" [routerLink]="['/orders', row.order.id]">Open order</a>
                       </app-row-menu>
                     </td>
+                    <td class="record-disclosure"><app-record-toggle /></td>
                   </tr>
                 }
               </tbody>

@@ -5,6 +5,12 @@
 }
 
 .side {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100dvh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: 28px;
@@ -15,7 +21,47 @@
 
 nav {
   display: grid;
-  gap: 4px;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.nav-category {
+  summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: 10px;
+    list-style: none;
+    color: var(--ink);
+    font-size: .8125rem;
+    font-weight: 650;
+    cursor: pointer;
+    transition: background-color 160ms ease, transform 120ms var(--ease-out);
+    &::-webkit-details-marker { display: none; }
+    &:active { transform: scale(.98); }
+    @media (hover: hover) and (pointer: fine) { &:hover { background: var(--tint); } }
+  }
+  .category-chevron {
+    width: 7px;
+    height: 7px;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(-45deg);
+    transition: transform 180ms var(--ease-out);
+  }
+  &[open] .category-chevron { transform: rotate(45deg); }
+  &:not([open]):has(.link.active) > summary { background: var(--primary-soft); color: var(--primary-strong); }
+  &:has(> summary:focus-visible)::details-content { transition-duration: 0s; }
+  summary:focus-visible .category-chevron { transition-duration: 0s; }
+}
+
+.category-links { display: grid; gap: 4px; padding: 4px 0 8px 8px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-category summary:active { transform: none; }
 }
 
 .link {
@@ -172,8 +218,6 @@ nav {
     inset: 0 auto 0 0;
     z-index: 30;
     width: min(300px, 86vw);
-    overflow-y: auto;
-    overscroll-behavior: contain;
     transform: translateX(-100%);
     visibility: hidden;
     transition:
@@ -220,4 +264,3 @@ nav {
     display: none;
   }
 }
-

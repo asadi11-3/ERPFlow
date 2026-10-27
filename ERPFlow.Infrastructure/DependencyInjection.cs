@@ -1,4 +1,5 @@
 using ERPFlow.Application.Abstractions;
+using ERPFlow.Application.Analytics;
 using ERPFlow.Application.Equipment;
 using ERPFlow.Application.SalesOrders;
 using ERPFlow.Application.Service;
@@ -24,6 +25,7 @@ public static class DependencyInjection
         services.AddScoped<ISalesOrderPersistence, EfSalesOrderPersistence>();
         services.AddScoped<IUserDirectory, EfUserDirectory>();
         services.AddScoped<IReferenceDataQueries, EfReferenceDataQueries>();
+        services.AddScoped<IAnalyticsQueries, EfAnalyticsQueries>();
         services.AddScoped<ISalesOrderWorkflow, SalesOrderWorkflow>();
         services.AddScoped<IEquipmentPersistence, EfEquipmentPersistence>();
         services.AddScoped<IEquipmentWorkflow, EquipmentWorkflow>();

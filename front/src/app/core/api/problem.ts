@@ -11,7 +11,9 @@ export function problemMessage(err: unknown): string {
   const body = (err.error ?? {}) as Problem;
   switch (err.status) {
     case 0:
-      return 'Cannot reach the server. Try again.';
+      return err.statusText === 'Offline'
+        ? 'You are offline. Reconnect before saving. Nothing has been queued.'
+        : 'Connection lost. If you were saving, check the record after reconnecting before trying again.';
     case 400: {
       const first = body.errors ? Object.values(body.errors).flat()[0] : undefined;
       return first ?? body.detail ?? body.title ?? 'The request is not valid.';

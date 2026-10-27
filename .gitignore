@@ -369,5 +369,13 @@ FodyWeavers.xsd
 
 # Local agent instructions
 AGENTS.md
-/.gitignore
-/.gitignore
+
+# Generated project graphs and local review artifacts
+/graphify-out/
+/ERPFlow-review*.zip
+/analytics-*.png
+/mobile-order-*.png
+
+# OS metadata
+.DS_Store
+Thumbs.db

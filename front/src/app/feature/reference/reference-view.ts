@@ -7,12 +7,13 @@ import { Icon } from '../../ui/icon/icon';
 import { Pagination } from '../../ui/pagination/pagination';
 import { Pill } from '../../ui/pill/pill';
 import { Select, SelectOption } from '../../ui/select/select';
+import { MiddleText } from '../../ui/table-record/table-record';
 
 type Tab = 'customers' | 'products';
 
 @Component({
   selector: 'app-reference-view',
-  imports: [CurrencyPipe, Avatar, Icon, Pagination, Pill, Select],
+  imports: [CurrencyPipe, Avatar, Icon, Pagination, Pill, Select, MiddleText],
   template: `
     <section class="page">
       <header class="page-head">
@@ -76,8 +77,8 @@ type Tab = 'customers' | 'products';
                 <tbody>
                   @for (c of customerRows(); track c.id) {
                     <tr>
-                      <td class="main"><span class="cell-customer"><app-avatar [name]="c.name" /><span class="clip" [title]="c.name">{{ c.name }}</span></span></td>
-                      <td class="muted span" data-label="Email"><span class="clip" [title]="c.email">{{ c.email }}</span></td>
+                      <td class="main"><span class="cell-customer"><app-avatar [name]="c.name" /><app-middle-text [value]="c.name" /></span></td>
+                      <td class="muted span" data-label="Email"><app-middle-text [value]="c.email" /></td>
                       <td class="span" data-label="Status"><app-pill label="Active" tone="green" /></td>
                     </tr>
                   }
@@ -96,8 +97,8 @@ type Tab = 'customers' | 'products';
                 <tbody>
                   @for (p of productRows(); track p.id) {
                     <tr>
-                      <td class="muted" data-label="SKU">{{ p.sku }}</td>
-                      <td class="main"><span class="clip" [title]="p.name">{{ p.name }}</span></td>
+                      <td class="muted" data-label="SKU"><app-middle-text [value]="p.sku" /></td>
+                      <td class="main"><app-middle-text [value]="p.name" /></td>
                       <td class="num" data-label="Unit price">{{ p.unitPrice | currency }}</td>
                       <td class="num" data-label="Available">
                         <app-pill [label]="'' + p.availableStock" [tone]="p.availableStock === 0 ? 'red' : 'green'" />

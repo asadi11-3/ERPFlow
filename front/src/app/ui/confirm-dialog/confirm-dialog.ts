@@ -3,7 +3,7 @@ import { Component, effect, ElementRef, input, model, output, viewChild } from '
 @Component({
   selector: 'app-confirm-dialog',
   template: `
-    <dialog #dlg aria-labelledby="cd-title" aria-describedby="cd-msg" (close)="open.set(false)">
+    <dialog #dlg aria-labelledby="cd-title" aria-describedby="cd-msg" (cancel)="busy() ? $event.preventDefault() : open.set(false)" (close)="open.set(false)">
       <h2 id="cd-title">{{ heading() }}</h2>
       <p id="cd-msg">{{ message() }}</p>
       <ng-content />
@@ -24,38 +24,10 @@ import { Component, effect, ElementRef, input, model, output, viewChild } from '
       border-radius: var(--radius);
       background: var(--surface);
       color: var(--ink);
-      opacity: 0;
-      transform: scale(0.95);
-      /* exit is faster than enter; centered origin since modal is not anchored */
-      transition:
-        opacity 120ms ease,
-        transform 120ms var(--ease-out),
-        overlay 120ms allow-discrete,
-        display 120ms allow-discrete;
-    }
-    dialog[open] {
-      opacity: 1;
-      transform: none;
-      transition-duration: 200ms;
-    }
-    @starting-style {
-      dialog[open] { opacity: 0; transform: scale(0.95); }
-    }
-    dialog::backdrop {
-      background: oklch(0.2 0.02 180 / 0.45);
-      opacity: 0;
-      transition: opacity 120ms ease, overlay 120ms allow-discrete, display 120ms allow-discrete;
-    }
-    dialog[open]::backdrop { opacity: 1; transition-duration: 200ms; }
-    @starting-style {
-      dialog[open]::backdrop { opacity: 0; }
     }
     h2 { margin: 0 0 8px; font-size: 1.125rem; }
     p { margin: 0 0 20px; color: var(--muted); max-width: 60ch; }
     .actions { display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
-    @media (prefers-reduced-motion: reduce) {
-      dialog, dialog[open] { transform: none; }
-    }
   `,
 })
 export class ConfirmDialog {

@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { computed, DestroyRef, effect, inject, Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
@@ -13,6 +13,10 @@ export function homeForRole(role?: Role | null): string {
       return '/approvals';
     case 'Technician':
       return '/service';
+    case 'Purchasing':
+      return '/purchase-orders';
+    case 'WarehouseOperator':
+      return '/receiving';
     case 'Sales':
     case 'Administrator':
     default:
@@ -70,6 +74,34 @@ export class Session {
     const token = this.raw();
     return token ? toUser(token) : null;
   });
+
+  constructor() {
+    const resume = () => {
+      if (document.visibilityState === 'visible' && this.raw() && !toUser(this.raw()!)) this.expire();
+    };
+    window.addEventListener('focus', resume);
+    window.addEventListener('pageshow', resume);
+    document.addEventListener('visibilitychange', resume);
+    inject(DestroyRef).onDestroy(() => {
+      window.removeEventListener('focus', resume);
+      window.removeEventListener('pageshow', resume);
+      document.removeEventListener('visibilitychange', resume);
+    });
+    effect((onCleanup) => {
+      const token = this.raw();
+      const expiry = token ? decode(token)?.exp : undefined;
+      if (expiry === undefined) return;
+      let timer: ReturnType<typeof setTimeout>;
+      const schedule = () => {
+        timer = setTimeout(() => {
+          if (expiry * 1000 <= Date.now()) this.expire();
+          else schedule();
+        }, Math.min(Math.max(0, expiry * 1000 - Date.now()), 2_147_483_647));
+      };
+      schedule();
+      onCleanup(() => clearTimeout(timer));
+    });
+  }
 
   /** Expiry is time based, so guards recheck it on every run. */
   isActive(): boolean {

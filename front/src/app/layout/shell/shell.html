@@ -8,14 +8,21 @@
       </button>
     </div>
     <nav aria-label="Main">
-      @for (item of nav(); track item.path) {
-        <a [routerLink]="item.path" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: item.path === '/orders' }" class="link" (click)="drawerOpen.set(false)">
-          <app-icon [name]="item.icon" />
-          <span>{{ item.label }}</span>
-          @if (item.path === '/approvals' && pending.count() > 0) {
-            <span class="badge" aria-label="{{ pending.count() }} pending">{{ pending.count() }}</span>
-          }
-        </a>
+      @for (group of nav(); track group.label) {
+        <details class="nav-category" [open]="categories().includes(group.label)" (toggle)="toggleCategory(group.label, $event)">
+          <summary>{{ group.label }}<span class="category-chevron" aria-hidden="true"></span></summary>
+          <div class="category-links">
+            @for (item of group.items; track item.path) {
+              <a [routerLink]="item.path" [queryParamsHandling]="item.path.startsWith('/analytics/') ? 'preserve' : null" routerLinkActive="active" ariaCurrentWhenActive="page" [routerLinkActiveOptions]="{ exact: item.path === '/orders' }" class="link" (click)="drawerOpen.set(false)">
+                <app-icon [name]="item.icon" />
+                <span>{{ item.label }}</span>
+                @if (item.path === '/approvals' && pending.count() > 0) {
+                  <span class="badge" aria-label="{{ pending.count() }} pending">{{ pending.count() }}</span>
+                }
+              </a>
+            }
+          </div>
+        </details>
       }
     </nav>
   </aside>

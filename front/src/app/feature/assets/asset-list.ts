@@ -11,12 +11,13 @@ import { Reference } from '../../core/api/reference';
 import { Avatar } from '../../ui/avatar/avatar';
 import { Icon } from '../../ui/icon/icon';
 import { Pill } from '../../ui/pill/pill';
+import { MiddleText, RecordRow, RecordToggle } from '../../ui/table-record/table-record';
 
 type AssetTab = 'assets' | 'deliveries';
 
 @Component({
   selector: 'app-asset-list',
-  imports: [RouterLink, DatePipe, DecimalPipe, Avatar, Icon, Pill],
+  imports: [RouterLink, DatePipe, DecimalPipe, Avatar, Icon, Pill, MiddleText, RecordRow, RecordToggle],
   template: `
     <section class="page">
       <header class="page-head">
@@ -79,16 +80,16 @@ type AssetTab = 'assets' | 'deliveries';
                 </thead>
                 <tbody>
                   @for (a of assets(); track a.id) {
-                    <tr>
+                    <tr appRecordRow>
                       <td class="main">
-                        <a class="row-link" [routerLink]="['/assets', a.id]">{{ a.tagNumber }}</a>
+                        <a class="row-link" [routerLink]="['/assets', a.id]"><app-middle-text [value]="a.tagNumber" /></a>
                       </td>
-                      <td class="serial" data-label="Serial number">{{ a.serialNumber }}</td>
-                      <td data-label="Equipment model">{{ ref.productName(a.productId) }}</td>
+                      <td class="serial" data-label="Serial number"><app-middle-text [value]="a.serialNumber" /></td>
+                      <td data-label="Equipment model"><app-middle-text [value]="ref.productName(a.productId)" /></td>
                       <td data-label="Customer">
                         <span class="cell-customer">
                           <app-avatar [name]="ref.customerName(a.customerId)" />
-                          <span class="clip" [title]="ref.customerName(a.customerId)">{{ ref.customerName(a.customerId) }}</span>
+                          <app-middle-text [value]="ref.customerName(a.customerId)" />
                         </span>
                       </td>
                       <td class="num" data-label="Meter reading">{{ a.meterReading | number }}</td>
@@ -99,6 +100,7 @@ type AssetTab = 'assets' | 'deliveries';
                           [tone]="isWarrantyActive(a.warrantyExpiresAt) ? 'green' : 'gray'"
                         />
                       </td>
+                      <td class="record-disclosure"><app-record-toggle /></td>
                     </tr>
                   }
                 </tbody>
@@ -123,15 +125,16 @@ type AssetTab = 'assets' | 'deliveries';
                 </thead>
                 <tbody>
                   @for (d of deliveries(); track d.id) {
-                    <tr>
-                      <td class="main serial">{{ d.deliveryNumber }}</td>
+                    <tr appRecordRow>
+                      <td class="main serial"><app-middle-text [value]="d.deliveryNumber" /></td>
                       <td data-label="Sales order">
                         <a class="row-link" [routerLink]="['/orders', d.salesOrderId]">{{ shortOrderNo(d.salesOrderId) }}</a>
                       </td>
-                      <td data-label="Customer">{{ ref.customerName(d.customerId) }}</td>
-                      <td data-label="Carrier">{{ d.carrier }}</td>
-                      <td class="serial" data-label="Tracking number">{{ d.trackingNumber ?? '-' }}</td>
+                      <td data-label="Customer"><app-middle-text [value]="ref.customerName(d.customerId)" /></td>
+                      <td data-label="Carrier"><app-middle-text [value]="d.carrier" /></td>
+                      <td class="serial" data-label="Tracking number"><app-middle-text [value]="d.trackingNumber" /></td>
                       <td class="muted" data-label="Dispatched">{{ d.dispatchedAt | date: 'd MMM y, h:mm a' }}</td>
+                      <td class="record-disclosure"><app-record-toggle /></td>
                     </tr>
                   }
                 </tbody>

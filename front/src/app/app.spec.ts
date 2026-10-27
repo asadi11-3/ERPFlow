@@ -62,6 +62,22 @@ describe('App routing', () => {
     expect(TestBed.inject(Router).url).toBe('/orders');
     expect(el.querySelector('h1')?.textContent).toContain('My Sales Orders');
     expect(el.textContent).toContain('Ada Lovelace');
+    const categories = [...el.querySelectorAll<HTMLDetailsElement>('.nav-category')];
+    expect(categories.map(category => category.querySelector('summary')?.textContent?.trim())).toEqual(['Sales', 'Warehouse', 'Service', 'Reference Data', 'Insights']);
+    const insights = categories.at(-1)!;
+    expect([...insights.querySelectorAll('a')].map(link => link.getAttribute('href'))).toEqual(['/analytics/sales-service']);
+    expect(categories[0].open).toBe(true);
+    expect(categories[1].open).toBe(false);
+    categories[1].open = true;
+    categories[1].dispatchEvent(new Event('toggle'));
+    await harness.fixture.whenStable();
+    expect(categories[0].open).toBe(true);
+    expect(categories[1].open).toBe(true);
+    categories[0].open = false;
+    categories[0].dispatchEvent(new Event('toggle'));
+    await harness.fixture.whenStable();
+    expect(categories[0].open).toBe(false);
+    expect(categories[1].open).toBe(true);
   });
 
   it('sends an approver to the approvals queue', async () => {

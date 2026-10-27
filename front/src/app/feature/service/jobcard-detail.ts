@@ -12,10 +12,11 @@ import { Session } from '../../core/auth/session';
 import { Icon } from '../../ui/icon/icon';
 import { Pill } from '../../ui/pill/pill';
 import { Select, SelectOption } from '../../ui/select/select';
+import { MiddleText } from '../../ui/table-record/table-record';
 
 @Component({
   selector: 'app-jobcard-detail',
-  imports: [RouterLink, DatePipe, DecimalPipe, CurrencyPipe, Icon, Pill, Select],
+  imports: [RouterLink, DatePipe, DecimalPipe, CurrencyPipe, Icon, Pill, Select, MiddleText],
   template: `
     <section class="page">
       <a class="back" routerLink="/service"><app-icon name="arrow-left" /> Service Jobcards</a>
@@ -75,7 +76,7 @@ import { Select, SelectOption } from '../../ui/select/select';
                     <tbody>
                       @for (item of j.items; track item.id) {
                         <tr>
-                          <td class="main">{{ ref.productName(item.productId) }}</td>
+                          <td class="main"><app-middle-text [value]="ref.productName(item.productId)" /></td>
                           <td class="num" data-label="Qty">{{ item.quantity }}</td>
                           <td class="num" data-label="Unit price">{{ item.unitPrice | currency }}</td>
                           <td class="num" data-label="Line total"><strong>{{ item.lineTotal | currency }}</strong></td>

@@ -39,6 +39,18 @@ public sealed class GoodsReceiptApiTests : IAsyncLifetime
     {
         client.Dispose(); await factory.DisposeAsync(); await database.DisposeAsync();
     }
+    [Fact]
+    public async Task SessionForMissingPersistedUserReturnsUnauthorized()
+    {
+        var previousUser = new ERPFlow.Domain.Entities.AppUser("Previous session", "stale@example.test",
+            UserRole.Administrator, "unused-hash");
+        var token = factory.Services.GetRequiredService<JwtTokenService>().Create(previousUser).AccessToken;
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/warehouses")).StatusCode);
+
+        await Authenticate(seed.Procurement.Operator);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/warehouses")).StatusCode);
+    }
     [Theory]
     [InlineData(UserRole.Administrator, HttpStatusCode.Created)]
     [InlineData(UserRole.WarehouseOperator, HttpStatusCode.Created)]
@@ -152,7 +164,7 @@ public sealed class GoodsReceiptApiTests : IAsyncLifetime
     {
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
-            builder.UseEnvironment("Development");
+            builder.UseEnvironment(authorizeFixtureWrites ? "Development" : "Production");
             builder.ConfigureLogging(logging => logging.ClearProviders());
             builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?>
             {

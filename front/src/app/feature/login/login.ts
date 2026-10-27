@@ -10,7 +10,9 @@ function messageFor(error: unknown): string {
   if (error instanceof HttpErrorResponse) {
     if (error.status === 400) return 'Enter your email and password.';
     if (error.status === 401) return 'Email or password is incorrect.';
-    if (error.status === 0) return 'Cannot reach the server. Try again.';
+    if (error.status === 0) return navigator.onLine
+      ? 'Cannot reach the server. Try again.'
+      : 'You are offline. Reconnect to sign in.';
   }
   return 'Something went wrong. Try again.';
 }

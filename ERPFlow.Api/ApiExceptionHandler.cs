@@ -1,3 +1,4 @@
+using System.Data.Common;
 using ERPFlow.Application.Common;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
@@ -13,6 +14,13 @@ public sealed class ApiExceptionHandler(
         Exception exception,
         CancellationToken cancellationToken)
     {
+        if (httpContext.RequestAborted.IsCancellationRequested &&
+            exception is OperationCanceledException or DbException)
+        {
+            httpContext.Response.StatusCode = StatusCodes.Status499ClientClosedRequest;
+            return true;
+        }
+
         var (status, title) = exception switch
         {
             WorkflowValidationException or ArgumentException or BadHttpRequestException =>

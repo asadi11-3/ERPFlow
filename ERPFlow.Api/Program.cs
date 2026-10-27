@@ -1,6 +1,8 @@
 using System.Text;
 using ERPFlow.Api;
 using ERPFlow.Domain.Enums;
+using ERPFlow.Domain.Inventory;
+using ERPFlow.Application.Inventory;
 using ERPFlow.Infrastructure;
 using ERPFlow.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -11,7 +13,9 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 
-var builder = WebApplication.CreateBuilder(args);
+var activateInventory = args.Contains("--activate-warehouse-inventory", StringComparer.Ordinal);
+var resetDevelopmentDatabase = args.Contains("--reset-development-database", StringComparer.Ordinal);
+var builder = WebApplication.CreateBuilder(args.Where(arg => arg is not "--activate-warehouse-inventory" and not "--reset-development-database").ToArray());
 
 if (builder.Environment.IsDevelopment())
 {
@@ -24,7 +28,7 @@ if (builder.Environment.IsDevelopment())
         }
 
         policy.WithMethods("GET", "POST", "PUT")
-            .WithHeaders("Authorization", "Content-Type");
+            .WithHeaders("Authorization", "Content-Type", "Idempotency-Key");
     }));
 }
 
@@ -47,6 +51,18 @@ builder.Services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSch
         ?? throw new InvalidOperationException("JWT configuration is required.");
     jwt.Validate();
     options.MapInboundClaims = false;
+    options.Events = new JwtBearerEvents
+    {
+        OnTokenValidated = async context =>
+        {
+            var subject = context.Principal?.FindFirst("sub")?.Value;
+            var database = context.HttpContext.RequestServices.GetRequiredService<ERPFlowDbContext>();
+            if (!Guid.TryParse(subject, out var userId) ||
+                !await database.AppUsers.AsNoTracking().AnyAsync(user => user.Id == userId,
+                    context.HttpContext.RequestAborted))
+                context.Fail("The session user no longer exists. Sign in again.");
+        }
+    };
     options.TokenValidationParameters = new TokenValidationParameters
     {
         ValidateIssuer = true,
@@ -61,6 +77,7 @@ builder.Services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSch
         ClockSkew = TimeSpan.FromSeconds(30)
     };
 });
+
 builder.Services.AddAuthorization(options =>
 {
     options.AddPolicy(StockTransferEndpoints.Policy, policy => policy.RequireRole(UserRole.Administrator.ToString(), UserRole.WarehouseOperator.ToString()));
@@ -92,6 +109,7 @@ builder.Services.AddOpenApi(options =>
         };
         return Task.CompletedTask;
     });
+
     options.AddOperationTransformer((operation, context, _) =>
     {
         var metadata = context.Description.ActionDescriptor.EndpointMetadata;
@@ -113,6 +131,17 @@ builder.Services.AddOpenApi(options =>
 builder.Services.AddInfrastructure(serviceProvider =>
     serviceProvider.GetRequiredService<IConfiguration>().GetConnectionString("ERPFlowDb")
         ?? throw new InvalidOperationException("Connection string 'ERPFlowDb' is not configured."));
+
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddScoped<DevelopmentInventory>();
+    builder.Services.AddScoped<IInventoryWriteGate>(sp => sp.GetRequiredService<DevelopmentInventory>());
+}
+
+if (activateInventory && !builder.Environment.IsDevelopment())
+    throw new InvalidOperationException("Warehouse activation command requires Development environment.");
+if (resetDevelopmentDatabase && (!activateInventory || !builder.Environment.IsDevelopment()))
+    throw new InvalidOperationException("Development database reset requires the Development warehouse activation command.");
 
 var app = builder.Build();
 
@@ -141,14 +170,25 @@ if (app.Environment.IsDevelopment())
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<ERPFlowDbContext>();
+    if (resetDevelopmentDatabase)
+        await context.Database.EnsureDeletedAsync();
     await context.Database.MigrateAsync();
     var demoPassword = builder.Configuration["DemoUsers:Password"] ?? DevelopmentDataSeeder.DefaultPassword;
-    if (!string.IsNullOrWhiteSpace(demoPassword))
+    var warehouseActive = await context.InventoryAuthorities.AsNoTracking()
+        .AnyAsync(a => a.Mode == InventoryAuthorityMode.Warehouse);
+    if (!warehouseActive && !string.IsNullOrWhiteSpace(demoPassword))
     {
         await scope.ServiceProvider.GetRequiredService<DevelopmentDataSeeder>()
             .SeedAsync(app.Environment.EnvironmentName, demoPassword, allowProduction: true);
     }
+    if (activateInventory)
+    {
+        await scope.ServiceProvider.GetRequiredService<DevelopmentInventory>().ActivateAsync();
+        app.Logger.LogInformation("Development warehouse inventory activated and reconciled.");
+    }
 }
+
+if (activateInventory) return;
 
 app.MapApiEndpoints();
 app.Run();

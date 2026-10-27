@@ -1,4 +1,5 @@
 import { CurrencyPipe } from '@angular/common';
+import { MiddleText } from '../../ui/table-record/table-record';
 import { Component, inject, input } from '@angular/core';
 
 import { SalesOrder } from '../../core/api/models';
@@ -6,7 +7,7 @@ import { Reference } from '../../core/api/reference';
 
 @Component({
   selector: 'app-order-items',
-  imports: [CurrencyPipe],
+  imports: [CurrencyPipe, MiddleText],
   template: `
     <div class="table-wrap">
       <table class="table">
@@ -24,8 +25,8 @@ import { Reference } from '../../core/api/reference';
           @for (item of order().items; track item.id; let i = $index) {
             <tr>
               <td class="muted idx">{{ i + 1 }}</td>
-              <td class="main"><span class="clip" [title]="ref.productName(item.productId)">{{ ref.productName(item.productId) }}</span></td>
-              <td class="muted" data-label="SKU">{{ ref.product(item.productId)?.sku ?? '-' }}</td>
+              <td class="main"><app-middle-text [value]="ref.productName(item.productId)" /></td>
+              <td class="muted" data-label="SKU"><app-middle-text [value]="ref.product(item.productId)?.sku" /></td>
               <td class="num" data-label="Quantity">{{ item.quantity }}</td>
               <td class="num" data-label="Unit price">{{ item.unitPrice | currency }}</td>
               <td class="num" data-label="Line total">{{ item.lineTotal | currency }}</td>

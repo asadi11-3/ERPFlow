@@ -1,7 +1,9 @@
 import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
-import { EnvironmentProviders, makeEnvironmentProviders, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { EnvironmentProviders, isDevMode, makeEnvironmentProviders, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { provideServiceWorker } from '@angular/service-worker';
 
 import { authInterceptor } from './auth/interceptor';
+import { connectivityInterceptor } from './pwa/interceptor';
 
 /**
  * Global singletons for the whole app. `app.config.ts` calls this once.
@@ -10,6 +12,10 @@ import { authInterceptor } from './auth/interceptor';
 export function provideCore(): EnvironmentProviders {
   return makeEnvironmentProviders([
     provideBrowserGlobalErrorListeners(),
-    provideHttpClient(withFetch(), withInterceptors([authInterceptor])),
+    provideHttpClient(withFetch(), withInterceptors([connectivityInterceptor, authInterceptor])),
+    provideServiceWorker('ngsw-worker.js', {
+      enabled: !isDevMode(),
+      registrationStrategy: 'registerWhenStable:30000',
+    }),
   ]);
 }

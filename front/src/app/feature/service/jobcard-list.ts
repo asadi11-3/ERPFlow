@@ -12,6 +12,7 @@ import { Avatar } from '../../ui/avatar/avatar';
 import { Icon } from '../../ui/icon/icon';
 import { Pill } from '../../ui/pill/pill';
 import { Select, SelectOption } from '../../ui/select/select';
+import { MiddleText, RecordRow, RecordToggle } from '../../ui/table-record/table-record';
 
 const STATUS_OPTIONS: SelectOption[] = [
   { value: 'all', label: 'All statuses' },
@@ -24,7 +25,7 @@ const STATUS_OPTIONS: SelectOption[] = [
 
 @Component({
   selector: 'app-jobcard-list',
-  imports: [RouterLink, DatePipe, Avatar, Icon, Pill, Select],
+  imports: [RouterLink, DatePipe, Avatar, Icon, Pill, Select, MiddleText, RecordRow, RecordToggle],
   template: `
     <section class="page">
       <header class="page-head">
@@ -87,18 +88,18 @@ const STATUS_OPTIONS: SelectOption[] = [
               </thead>
               <tbody>
                 @for (j of filteredRows(); track j.id) {
-                  <tr>
+                  <tr appRecordRow>
                     <td class="main">
-                      <a class="row-link" [routerLink]="['/service', j.id]">{{ j.ticketNumber }}</a>
+                      <a class="row-link" [routerLink]="['/service', j.id]"><app-middle-text [value]="j.ticketNumber" /></a>
                     </td>
                     <td data-label="Customer">
                       <span class="cell-customer">
                         <app-avatar [name]="ref.customerName(j.customerId)" />
-                        <span class="clip" [title]="ref.customerName(j.customerId)">{{ ref.customerName(j.customerId) }}</span>
+                        <app-middle-text [value]="ref.customerName(j.customerId)" />
                       </span>
                     </td>
-                    <td class="span" data-label="Reported fault"><span class="clip" [title]="j.reportedFault">{{ j.reportedFault }}</span></td>
-                    <td data-label="Technician">{{ j.technicianName }}</td>
+                    <td class="span" data-label="Reported fault"><app-middle-text [value]="j.reportedFault" /></td>
+                    <td data-label="Technician"><app-middle-text [value]="j.technicianName" /></td>
                     <td data-label="Priority">
                       <app-pill
                         [label]="priorityMap[j.priority]?.label ?? 'Unknown'"
@@ -112,6 +113,7 @@ const STATUS_OPTIONS: SelectOption[] = [
                       />
                     </td>
                     <td class="muted" data-label="Opened">{{ j.createdAt | date: 'd MMM y, h:mm a' }}</td>
+                    <td class="record-disclosure"><app-record-toggle /></td>
                   </tr>
                 }
               </tbody>
@@ -128,7 +130,17 @@ const STATUS_OPTIONS: SelectOption[] = [
     .list-head p { margin: 2px 0 0; font-size: 0.875rem; }
     .list-head label { font-size: 0.875rem; font-weight: 600; }
     .list-head app-select { width: min(100%, 220px); }
-    .table-wrap { overflow-x: auto; }
+    .table { table-layout: fixed; }
+    .table th:nth-child(1) { width: 13%; }
+    .table th:nth-child(2) { width: 17%; }
+    .table th:nth-child(3) { width: 20%; }
+    .table th:nth-child(4) { width: 13%; }
+    .table th:nth-child(5) { width: 9%; }
+    .table th:nth-child(6) { width: 17%; }
+    .table th:nth-child(7) { width: 11%; }
+    .table th { white-space: normal; }
+    .table app-pill { max-width: 100%; white-space: normal; }
+    .table td[data-label='Opened'] { white-space: normal; }
     @media (max-width: 640px) { .list-head app-select { width: 100%; } }
   `,
 })
