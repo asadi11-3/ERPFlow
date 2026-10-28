@@ -1,0 +1,25 @@
+:host { display: inline-flex; vertical-align: middle; }
+.thumbnail { display: grid; place-items: center; width: 48px; height: 48px; padding: 0; flex: none; overflow: hidden; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); background: var(--tint); cursor: pointer; }
+.thumbnail img { width: 100%; height: 100%; object-fit: contain; }
+@media (hover: hover) and (pointer: fine) { .thumbnail:hover { background: var(--primary-soft); color: var(--primary); } }
+.thumbnail:active { transform: scale(.97); }
+dialog { width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; padding: 24px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink); font-size: 1rem; font-weight: 400; text-align: left; }
+.preview-heading { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 20px; }
+.preview-heading > div { min-width: 0; }
+h2 { font-size: 1.125rem; overflow-wrap: anywhere; }
+.sku { color: var(--muted); font: .875rem var(--mono); overflow-wrap: anywhere; margin-top: 4px; }
+.close { min-width: 44px; padding: 0; }
+.preview { position: relative; aspect-ratio: 4 / 3; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; background: var(--tint); overflow: hidden; }
+.preview img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.placeholder { display: grid; justify-items: center; gap: 12px; padding: 24px; text-align: center; color: var(--muted); }
+.feedback { min-height: 24px; color: var(--success); font-size: .875rem; margin-top: 12px; }
+.image-error { color: var(--danger-ink); background: var(--danger-soft); border-radius: 8px; padding: 12px; margin-top: 16px; overflow-wrap: anywhere; }
+.image-file { margin-top: 16px; }
+.image-file input { padding: 8px; }
+.help, .selected-name { font-size: .875rem; color: var(--muted); overflow-wrap: anywhere; }
+.selected-name { margin-top: 12px; }
+.actions, footer { display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+footer { border-top: 1px solid var(--line); padding-top: 16px; justify-content: space-between; }
+.delete-confirm { margin-top: 16px; padding: 16px; border-radius: 8px; background: var(--danger-soft); }
+.delete-confirm p { overflow-wrap: anywhere; }
+@media (max-width: 480px) { dialog { padding: 16px; } .actions > .btn { flex: 1 1 auto; } }

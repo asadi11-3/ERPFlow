@@ -46,7 +46,7 @@ import { ProcurementApi } from '../../core/procurement/procurement-api';
 export class PurchaseForm {
   protected readonly partyOptions = computed(() => [{ value: '', label: this.transfer ? 'Choose a warehouse' : 'Choose a supplier' }, ...(this.transfer ? this.warehouses().map(w => ({ value: w.id, label: `${w.code} · ${w.name}${w.isActive ? '' : ' (inactive)'}`, disabled: !w.isActive })) : this.suppliers().map(s => ({ value: s.id, label: `${s.supplierCode} · ${s.name}${s.isActive ? '' : ' (inactive)'}`, disabled: !s.isActive })))]);
   protected readonly destinationOptions = computed(() => [{ value: '', label: 'Choose a warehouse' }, ...this.warehouses().map(w => ({ value: w.id, label: `${w.code} · ${w.name}${w.isActive ? '' : ' (inactive)'}`, disabled: !w.isActive || (this.transfer && w.id === this.party()) }))]);
-  protected readonly productOptions = computed(() => this.lines().map((_, index, lines) => [{ value: '', label: 'Choose a product' }, ...this.ref.products().map(p => ({ value: p.id, label: `${p.sku} · ${p.name}`, disabled: lines.some((line, i) => i !== index && line.productId === p.id) }))]));
+  protected readonly productOptions = computed(() => this.lines().map((_, index, lines) => [{ value: '', label: 'Choose a product' }, ...this.ref.products().map(p => ({ value: p.id, label: `${p.sku} · ${p.name}${p.isActive === false ? ' (inactive)' : ''}`, disabled: p.isActive === false || lines.some((line, i) => i !== index && line.productId === p.id) }))]));
   private readonly api = inject(ProcurementApi);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);

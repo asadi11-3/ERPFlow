@@ -246,7 +246,7 @@ export class JobcardDetail {
   protected readonly productOptions = computed<SelectOption[]>(() => {
     return [
       { value: '', label: 'Select product/spare...' },
-      ...this.ref.products().map((p) => ({
+      ...this.ref.activeProducts().map((p) => ({
         value: p.id,
         label: `${p.name} (${p.sku}) — Available: ${p.availableStock}`,
       })),

@@ -7,6 +7,8 @@ using ERPFlow.Application.Inventory;
 using ERPFlow.Application.Procurement;
 using ERPFlow.Application.Receiving;
 using ERPFlow.Application.Transfers;
+using ERPFlow.Application.ProductImages;
+using ERPFlow.Infrastructure.ProductImages;
 using ERPFlow.Infrastructure.Persistence;
 using ERPFlow.Infrastructure.Persistence.Inventory;
 using Microsoft.EntityFrameworkCore;
@@ -49,6 +51,11 @@ public static class DependencyInjection
         services.AddScoped<IStockTransferWorkflow, StockTransferWorkflow>();
         services.AddScoped<IInventoryQueryPersistence, EfInventoryQueryPersistence>();
         services.AddScoped<IInventoryQueryWorkflow, InventoryQueryWorkflow>();
+        services.AddSingleton<IProductImageNormalizer, SkiaProductImageNormalizer>();
+        services.AddScoped<EfProductImageWorkflow>();
+        services.AddScoped<IProductImageWorkflow>(sp => sp.GetRequiredService<EfProductImageWorkflow>());
+        services.AddScoped<IProductImageCleanup>(sp => sp.GetRequiredService<EfProductImageWorkflow>());
+        services.AddScoped<ERPFlow.Application.Products.IProductCatalog, EfProductCatalog>();
         return services;
     }
 }

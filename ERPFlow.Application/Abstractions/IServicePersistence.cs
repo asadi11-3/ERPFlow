@@ -11,7 +11,7 @@ public interface IServicePersistence
     Task<Customer?> FindCustomerAsync(Guid customerId, CancellationToken cancellationToken = default);
     Task<AppUser?> FindAppUserAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<MachineAsset?> FindMachineAssetAsync(Guid assetId, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<Product>> GetProductsAsync(IReadOnlyCollection<Guid> productIds, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Product>> GetProductsAsync(IReadOnlyCollection<Guid> productIds, CancellationToken cancellationToken = default, bool lockForCatalog = false);
     void AddJobcard(Jobcard jobcard);
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }

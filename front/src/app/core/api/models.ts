@@ -71,6 +71,9 @@ export interface Product {
   sku: string;
   unitPrice: number;
   availableStock: number;
+  readonly hasImage?: boolean;
+  readonly imageVersion?: string | null;
+  readonly isActive?: boolean;
 }
 
 export interface HistoryEntry {

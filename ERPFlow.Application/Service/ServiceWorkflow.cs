@@ -96,7 +96,7 @@ public sealed class ServiceWorkflow(
             throw new WorkflowConflictException("A requested product already exists on this jobcard.");
         }
 
-        var products = await persistence.GetProductsAsync(productIds, cancellationToken);
+        var products = await persistence.GetProductsAsync(productIds, cancellationToken, lockForCatalog: true);
         var missingProductId = productIds.FirstOrDefault(id => products.All(product => product.Id != id));
         if (missingProductId != Guid.Empty)
         {
@@ -104,6 +104,9 @@ public sealed class ServiceWorkflow(
         }
 
         var productsById = products.ToDictionary(p => p.Id);
+
+        if (products.Any(product => !product.IsActive))
+            throw new WorkflowConflictException("Inactive products cannot be selected for new parts requests.");
 
         foreach (var p in command.Parts)
         {

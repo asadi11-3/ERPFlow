@@ -12,7 +12,7 @@ public interface IStockTransferPersistence
     Task<AppUser?> FindActorAsync(Guid id, CancellationToken ct);
     Task<StockTransferCommand?> LockCommandAsync(Guid actor, string key, CancellationToken ct);
     Task<StockTransfer?> FindAsync(Guid id, bool lockForUse, CancellationToken ct);
-    Task EnsureWarehousesAsync(Guid source, Guid dest, IReadOnlyCollection<Guid> products, CancellationToken ct);
+    Task EnsureWarehousesAsync(Guid source, Guid dest, IReadOnlyCollection<Guid> products, CancellationToken ct, bool requireActive = false);
     void AddTransfer(StockTransfer transfer);
     Task EnterScopeAsync(Guid id, CancellationToken ct);
     Task SaveAsync(CancellationToken ct);

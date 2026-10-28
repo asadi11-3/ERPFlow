@@ -50,7 +50,7 @@ public sealed class PurchaseOrderWorkflow(IProcurementPersistence persistence, I
         var lines = ValidateLines(command.SupplierId, command.WarehouseId, command.Items);
         await using var tx = await persistence.BeginAsync(ct: ct);
         var actor = await ProcurementAccess.ActorAsync(persistence, current, ct, Writers);
-        await ValidateSourcesAsync(command.SupplierId, command.WarehouseId, lines, ct);
+        await ValidateSourcesAsync(command.SupplierId, command.WarehouseId, lines, ct, requireActive: true);
         var order = ProcurementAccess.Domain(() => new PurchaseOrder(command.SupplierId, command.WarehouseId, actor.Id, lines, command.Notes));
         persistence.AddOrder(order);
         await persistence.SaveAsync(ct);
@@ -67,7 +67,7 @@ public sealed class PurchaseOrderWorkflow(IProcurementPersistence persistence, I
         EnsureOwner(actor, order);
         ProcurementAccess.Version(command.RowVersion, order.RowVersion);
         if (order.Status != PurchaseOrderStatus.Draft) throw new WorkflowConflictException("Only Draft purchase orders can be edited.");
-        await ValidateSourcesAsync(command.SupplierId, command.WarehouseId, lines, ct);
+        await ValidateSourcesAsync(command.SupplierId, command.WarehouseId, lines, ct, requireActive: true);
         persistence.RemoveDraftItems(order.Items.Where(x => lines.All(line => line.ProductId != x.ProductId)).ToArray());
         ProcurementAccess.Domain(() => { order.Edit(command.SupplierId, command.WarehouseId, lines, command.Notes); return true; });
         await persistence.SaveAsync(ct);
@@ -119,7 +119,8 @@ public sealed class PurchaseOrderWorkflow(IProcurementPersistence persistence, I
             throw new WorkflowAuthorizationException("Only Administrators can cancel an Approved PO.");
         if (action is PurchaseOrderAction.Submitted or PurchaseOrderAction.Approved)
             await ValidateSourcesAsync(order.SupplierId, order.WarehouseId,
-                order.Items.Select(x => (x.ProductId, x.Quantity, x.UnitCost)).ToArray(), ct);
+                order.Items.Select(x => (x.ProductId, x.Quantity, x.UnitCost)).ToArray(), ct,
+                requireActive: action == PurchaseOrderAction.Submitted);
         var history = ProcurementAccess.Domain(() => action switch
         {
             PurchaseOrderAction.Submitted => order.Submit(actor.Id),
@@ -133,13 +134,13 @@ public sealed class PurchaseOrderWorkflow(IProcurementPersistence persistence, I
         return View(order);
     }
     private async Task ValidateSourcesAsync(Guid supplierId, Guid warehouseId,
-        IReadOnlyCollection<(Guid ProductId, int Quantity, decimal UnitCost)> lines, CancellationToken ct)
+        IReadOnlyCollection<(Guid ProductId, int Quantity, decimal UnitCost)> lines, CancellationToken ct, bool requireActive = false)
     {
         var warehouse = await persistence.FindWarehouseAsync(warehouseId, true, ct) ?? throw new EntityNotFoundException(nameof(Warehouse), warehouseId);
         if (!warehouse.IsActive) throw new WorkflowConflictException("The destination warehouse is inactive.");
         var supplier = await persistence.FindSupplierAsync(supplierId, true, ct) ?? throw new EntityNotFoundException(nameof(Supplier), supplierId);
         if (!supplier.IsActive) throw new WorkflowConflictException("The supplier is inactive.");
-        var missing = await persistence.FindMissingProductAsync(lines.Select(x => x.ProductId).ToArray(), ct);
+        var missing = await persistence.FindMissingProductAsync(lines.Select(x => x.ProductId).ToArray(), ct, requireActive);
         if (missing.HasValue) throw new EntityNotFoundException(nameof(Product), missing.Value);
     }
     private async Task<PurchaseOrder> OrderAsync(Guid id, bool tracking, CancellationToken ct)

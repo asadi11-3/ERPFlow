@@ -38,7 +38,7 @@ public sealed class StockTransferWorkflow(IStockTransferPersistence persistence,
         }
 
         var productIds = lines.Select(x => x.ProductId).ToArray();
-        await persistence.EnsureWarehousesAsync(command.SourceWarehouseId, command.DestinationWarehouseId, productIds, ct);
+        await persistence.EnsureWarehousesAsync(command.SourceWarehouseId, command.DestinationWarehouseId, productIds, ct, requireActive: true);
         var transfer = new StockTransfer(command.SourceWarehouseId, command.DestinationWarehouseId, actor,
             lines.Select(x => (x.ProductId, x.Quantity)).ToArray());
         await persistence.EnterScopeAsync(transfer.Id, ct);

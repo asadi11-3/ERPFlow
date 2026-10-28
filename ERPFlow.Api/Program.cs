@@ -5,6 +5,8 @@ using ERPFlow.Domain.Inventory;
 using ERPFlow.Application.Inventory;
 using ERPFlow.Infrastructure;
 using ERPFlow.Infrastructure.Persistence;
+using ERPFlow.Infrastructure.ProductImages;
+using ERPFlow.Application.ProductImages;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Authorization.Policy;
@@ -27,8 +29,9 @@ if (builder.Environment.IsDevelopment())
             policy.WithOrigins(origins);
         }
 
-        policy.WithMethods("GET", "POST", "PUT")
-            .WithHeaders("Authorization", "Content-Type", "Idempotency-Key");
+        policy.WithMethods("GET", "POST", "PUT", "DELETE")
+            .WithHeaders("Authorization", "Content-Type", "Idempotency-Key", "If-Match", "If-None-Match")
+            .WithExposedHeaders("ETag", "Location");
     }));
 }
 
@@ -80,6 +83,9 @@ builder.Services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSch
 
 builder.Services.AddAuthorization(options =>
 {
+    options.AddPolicy(ProductImageEndpoints.WritePolicy, policy => policy
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme)
+        .RequireAuthenticatedUser().RequireRole(UserRole.Administrator.ToString()));
     options.AddPolicy(StockTransferEndpoints.Policy, policy => policy.RequireRole(UserRole.Administrator.ToString(), UserRole.WarehouseOperator.ToString()));
     options.AddPolicy(InventoryQueryEndpoints.Policy, policy => policy.RequireRole(UserRole.Administrator.ToString(), UserRole.WarehouseOperator.ToString(), UserRole.Purchasing.ToString(), UserRole.Approver.ToString()));
     options.AddPolicy(GoodsReceiptEndpoints.Policy, policy => policy.RequireRole(UserRole.Administrator.ToString(), UserRole.WarehouseOperator.ToString()));
@@ -131,6 +137,12 @@ builder.Services.AddOpenApi(options =>
 builder.Services.AddInfrastructure(serviceProvider =>
     serviceProvider.GetRequiredService<IConfiguration>().GetConnectionString("ERPFlowDb")
         ?? throw new InvalidOperationException("Connection string 'ERPFlowDb' is not configured."));
+builder.Services.AddSingleton<IProductImageStorage>(_ => new LocalProductImageStorage(new ProductImageOptions
+{
+    RootPath = builder.Configuration["ProductImages:RootPath"],
+    ForbiddenRoots = [builder.Environment.ContentRootPath, builder.Environment.WebRootPath ?? Path.Combine(builder.Environment.ContentRootPath, "wwwroot")]
+}));
+builder.Services.AddHostedService<ProductImageCleanupWorker>();
 
 if (builder.Environment.IsDevelopment())
 {
@@ -155,6 +167,7 @@ if (app.Environment.IsDevelopment())
 }
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseMiddleware<ProductImageRequestMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {

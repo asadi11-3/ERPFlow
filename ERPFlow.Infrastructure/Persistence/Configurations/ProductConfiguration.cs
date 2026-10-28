@@ -33,6 +33,7 @@ public sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
             .HasPrecision(7)
             .IsRequired();
         builder.Property(product => product.RowVersion).IsRowVersion();
+        builder.Property(product => product.IsActive).HasDefaultValue(true);
 
         builder.Ignore(product => product.AvailableStock);
         builder.HasIndex(product => product.Sku).IsUnique();

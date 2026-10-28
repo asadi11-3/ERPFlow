@@ -18,7 +18,7 @@ public sealed class ProcurementMigrationTests
         await using var database = await InventoryTestDatabase.CreateAsync("20261026140337_AtomicInventoryCutoverRehearsal");
         var seed = await database.SeedAsync();
         await using var context = database.Context();
-        var before = await context.Products.AsNoTracking().SingleAsync();
+        var before = await context.Products.AsNoTracking().Select(x => new { x.RowVersion }).SingleAsync();
         var warehouses = await context.Warehouses.AsNoTracking().ToDictionaryAsync(x => x.Id, x => x.RowVersion);
         await context.Database.MigrateAsync();
         await context.Database.MigrateAsync();

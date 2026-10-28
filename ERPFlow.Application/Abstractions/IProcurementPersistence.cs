@@ -14,7 +14,7 @@ public interface IProcurementPersistence
     Task<bool> HasWarehouseCommitmentsAsync(Guid id, CancellationToken ct);
     Task<PageResult<Supplier>> ListSuppliersAsync(int page, int size, string? search, bool? active, CancellationToken ct);
     Task<Supplier?> FindSupplierAsync(Guid id, bool lockForUse, CancellationToken ct);
-    Task<Guid?> FindMissingProductAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct);
+    Task<Guid?> FindMissingProductAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct, bool requireActive = false);
     Task<PageResult<PurchaseOrder>> ListOrdersAsync(Guid? owner, int page, int size, PurchaseOrderStatus? status, bool receivingOnly, CancellationToken ct);
     Task<PurchaseOrder?> FindOrderAsync(Guid id, bool tracking, CancellationToken ct);
     Task<IReadOnlyList<PurchaseOrderHistory>> ListHistoryAsync(Guid id, CancellationToken ct);

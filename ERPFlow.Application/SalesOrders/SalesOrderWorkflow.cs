@@ -47,8 +47,10 @@ public sealed class SalesOrderWorkflow(
         }
 
         var productIds = command.Items.Select(item => item.ProductId).ToArray();
-        var products = await persistence.GetProductsAsync(productIds, cancellationToken);
+        var products = await persistence.GetProductsAsync(productIds, cancellationToken, lockForCatalog: true);
         EnsureAllProductsFound(productIds, products);
+
+        EnsureActiveProducts(products);
 
         var productsById = products.ToDictionary(product => product.Id);
         var order = new SalesOrder(customer.Id, actor.Id);
@@ -94,8 +96,9 @@ public sealed class SalesOrderWorkflow(
         }
 
         var productIds = command.Items.Select(item => item.ProductId).ToArray();
-        var products = await persistence.GetProductsAsync(productIds, cancellationToken);
+        var products = await persistence.GetProductsAsync(productIds, cancellationToken, lockForCatalog: true);
         EnsureAllProductsFound(productIds, products);
+        EnsureActiveProducts(products);
         var productsById = products.ToDictionary(product => product.Id);
         var existingItems = order.Items.ToDictionary(item => item.ProductId);
         var revisedLines = new List<(Product Product, int Quantity, Guid? WarehouseId)>();
@@ -137,11 +140,12 @@ public sealed class SalesOrderWorkflow(
         EnsureOwner(order, actor);
         var products = await persistence.GetProductsAsync(
             order.Items.Select(item => item.ProductId).ToArray(),
-            cancellationToken);
+            cancellationToken, lockForCatalog: order.Status == OrderStatus.Draft);
 
         try
         {
             await ValidateReservationOriginsAsync(order, cancellationToken);
+            if (order.Status == OrderStatus.Draft) EnsureActiveProducts(products);
             if (order.ReservationHistory.Any(reservation => reservation.IsReleased && !reservation.IsHistorical))
             {
                 order.ArchiveClosedReservations();
@@ -404,6 +408,12 @@ public sealed class SalesOrderWorkflow(
         var foundIds = products.Select(product => product.Id).ToHashSet();
         var missingId = productIds.First(id => !foundIds.Contains(id));
         throw new EntityNotFoundException(nameof(Product), missingId);
+    }
+
+    private static void EnsureActiveProducts(IReadOnlyCollection<Product> products)
+    {
+        if (products.Any(product => !product.IsActive))
+            throw new WorkflowConflictException("Inactive products cannot be selected or submitted in new sales commitments.");
     }
 
     private static SalesOrderResult ToResult(SalesOrder order) =>

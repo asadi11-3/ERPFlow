@@ -77,7 +77,8 @@ internal sealed class InventoryTestDatabase(string connectionString) : IAsyncDis
         var otherWarehouse = new Warehouse("OTHER", "Other");
         var stock = new WarehouseStock(warehouse.Id, product.Id);
         var otherStock = new WarehouseStock(otherWarehouse.Id, product.Id);
-        context.AddRange(actor, customer, product, first, second, jobcard, warehouse, otherWarehouse, stock, otherStock);
+        if (!await LegacyProductFixture.InsertIfLegacyAsync(context, product)) context.Products.Add(product);
+        context.AddRange(actor, customer, first, second, jobcard, warehouse, otherWarehouse, stock, otherStock);
         await context.SaveChangesAsync();
         return new InventorySeed(actor.Id, product.Id, warehouse.Id, otherWarehouse.Id, stock.Id, otherStock.Id,
             first.Id, second.Id, jobcard.Items[0].Id, stock.RowVersion.ToArray(), otherStock.RowVersion.ToArray());

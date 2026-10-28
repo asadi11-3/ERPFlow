@@ -2,6 +2,7 @@ using ERPFlow.Application.Abstractions;
 using Microsoft.EntityFrameworkCore;
 using ERPFlow.Domain.Inventory;
 using ERPFlow.Infrastructure.Persistence.Inventory;
+using ERPFlow.Application.ProductImages;
 
 namespace ERPFlow.Infrastructure.Persistence;
 
@@ -30,9 +31,14 @@ public sealed class EfReferenceDataQueries(ERPFlowDbContext context) : IReferenc
                 product.Sku,
                 product.UnitPrice,
                 warehouse ? context.WarehouseStocks.Where(stock => stock.ProductId == product.Id && stock.WarehouseId == LegacyDefaultWarehouse.Id)
-                    .Select(stock => stock.StockOnHand - stock.ReservedQuantity).FirstOrDefault() : product.StockOnHand - product.ReservedQuantity))
+                    .Select(stock => stock.StockOnHand - stock.ReservedQuantity).FirstOrDefault() : product.StockOnHand - product.ReservedQuantity,
+                false, null, product.IsActive))
             .ToListAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return results;
+        var versions = await context.ProductImages.AsNoTracking()
+            .Select(image => new { image.ProductId, image.RowVersion }).ToDictionaryAsync(image => image.ProductId, cancellationToken);
+        return results.Select(product => versions.TryGetValue(product.Id, out var image)
+            ? product with { HasImage = true, ImageVersion = ProductImageVersions.Encode(image.RowVersion) }
+            : product).ToList();
     }
 }

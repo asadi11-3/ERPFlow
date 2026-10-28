@@ -18,6 +18,7 @@ export class Reference {
 
   readonly customers = computed<Customer[]>(() => (this.data.hasValue() ? this.data.value().customers : []));
   readonly products = computed<Product[]>(() => (this.data.hasValue() ? this.data.value().products : []));
+  readonly activeProducts = computed(() => this.products().filter(product => product.isActive !== false));
   readonly loading = this.data.isLoading;
   readonly failed = computed(() => this.data.status() === 'error');
 
@@ -42,5 +43,15 @@ export class Reference {
 
   reload(): void {
     this.data.reload();
+  }
+
+  updateProductImage(id: string, version: string | null): void {
+    if (!this.data.hasValue()) return;
+    this.data.value.update((data) => data ? {
+      ...data,
+      products: data.products.map((product) => product.id === id
+        ? { ...product, hasImage: version !== null, imageVersion: version }
+        : product),
+    } : data);
   }
 }

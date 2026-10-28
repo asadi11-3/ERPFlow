@@ -1,5 +1,7 @@
 using System.Data.Common;
 using ERPFlow.Application.Common;
+using ERPFlow.Application.ProductImages;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
 
@@ -23,6 +25,22 @@ public sealed class ApiExceptionHandler(
 
         var (status, title) = exception switch
         {
+            IOException or DbException or DbUpdateException or TimeoutException
+                when exception is not BadHttpRequestException &&
+                    (httpContext.GetEndpoint() ?? httpContext.Features.Get<IExceptionHandlerFeature>()?.Endpoint)
+                    ?.Metadata.GetMetadata<ProductImageEndpointMetadata>() is not null =>
+                (StatusCodes.Status503ServiceUnavailable, "Product image service unavailable"),
+            BadHttpRequestException { StatusCode: StatusCodes.Status413PayloadTooLarge } =>
+                (StatusCodes.Status413PayloadTooLarge, "Request payload too large"),
+            ProductImageException image => image.Error switch
+            {
+                ProductImageError.TooLarge => (413, "Image payload too large"),
+                ProductImageError.UnsupportedMediaType => (415, "Unsupported image format"),
+                ProductImageError.PreconditionRequired => (428, "Image precondition required"),
+                ProductImageError.PreconditionFailed => (412, "Image precondition failed"),
+                ProductImageError.NotFound => (404, "Product image not found"),
+                _ => (400, "Invalid product image")
+            },
             WorkflowValidationException or ArgumentException or BadHttpRequestException =>
                 (StatusCodes.Status400BadRequest, "Request validation failed"),
             WorkflowAuthorizationException =>
@@ -34,7 +52,7 @@ public sealed class ApiExceptionHandler(
             _ => (StatusCodes.Status500InternalServerError, "Unexpected server error")
         };
 
-        if (status == StatusCodes.Status500InternalServerError)
+        if (status >= StatusCodes.Status500InternalServerError)
         {
             logger.LogError(exception, "An unhandled API exception occurred.");
         }
@@ -47,7 +65,9 @@ public sealed class ApiExceptionHandler(
             {
                 Status = status,
                 Title = title,
-                Detail = status == StatusCodes.Status500InternalServerError
+                Detail = status == StatusCodes.Status413PayloadTooLarge
+                    ? "The request exceeds the allowed size."
+                    : status >= StatusCodes.Status500InternalServerError
                     ? "An unexpected error occurred."
                     : exception.Message
             },

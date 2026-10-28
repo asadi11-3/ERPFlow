@@ -2,6 +2,7 @@ namespace ERPFlow.Domain.Entities;
 
 public sealed class Product
 {
+    public const decimal MaxCatalogUnitPrice = 9999999999999.99m;
     public Product(string name, string sku, decimal unitPrice, int stockOnHand)
     {
         if (unitPrice < 0)
@@ -29,6 +30,19 @@ public sealed class Product
     public string Sku { get; private set; }
 
     public decimal UnitPrice { get; private set; }
+
+    public bool IsActive { get; private set; } = true;
+
+    public void EditCatalog(string name, decimal unitPrice)
+    {
+        var normalized = RequireText(name, nameof(name));
+        if (normalized.Length > 200 || unitPrice < 0 || unitPrice > MaxCatalogUnitPrice || decimal.Round(unitPrice, 2) != unitPrice)
+            throw new ArgumentException("Name must be at most 200 characters and unit price a nonnegative two-decimal amount.");
+        Name = normalized;
+        UnitPrice = unitPrice;
+    }
+
+    public void SetActive(bool active) => IsActive = active;
 
     public int StockOnHand { get; private set; }
 

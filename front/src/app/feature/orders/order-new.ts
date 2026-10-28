@@ -264,7 +264,7 @@ export class OrderNew {
         products.map((p) => ({
           value: p.id,
           label: `${p.name} (${p.sku})`,
-          disabled: lines.some((o) => o.key !== l.key && o.productId === p.id),
+          disabled: p.isActive === false || lines.some((o) => o.key !== l.key && o.productId === p.id),
         })),
       ]),
     );

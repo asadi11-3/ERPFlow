@@ -1,7 +1,10 @@
 import { CurrencyPipe } from '@angular/common';
 import { Component, computed, inject, linkedSignal, signal } from '@angular/core';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 
 import { Reference } from '../../core/api/reference';
+import { ProductImage } from '../../pattern/product-image/product-image';
+import { Session } from '../../core/auth/session';
 import { Avatar } from '../../ui/avatar/avatar';
 import { Icon } from '../../ui/icon/icon';
 import { Pagination } from '../../ui/pagination/pagination';
@@ -13,7 +16,7 @@ type Tab = 'customers' | 'products';
 
 @Component({
   selector: 'app-reference-view',
-  imports: [CurrencyPipe, Avatar, Icon, Pagination, Pill, Select, MiddleText],
+  imports: [CurrencyPipe, Avatar, Icon, Pagination, Pill, Select, MiddleText, ProductImage, RouterLink],
   template: `
     <section class="page">
       <header class="page-head">
@@ -21,6 +24,7 @@ type Tab = 'customers' | 'products';
           <h1>Reference Data</h1>
           <p>Customers and products available for sales orders.</p>
         </div>
+        @if (administrator() && tab() === 'products') { <a class="btn btn-primary" routerLink="/reference/products/new">Add Product</a> }
       </header>
 
       <div class="card">
@@ -46,6 +50,7 @@ type Tab = 'customers' | 'products';
           </div>
           <label class="muted" for="size">Show</label>
           <app-select inputId="size" [options]="sizes" [value]="'' + pageSize()" (valueChange)="setSize($event)" />
+          @if (tab() === 'products') { <app-select inputId="product-availability" ariaLabel="Product availability" [options]="availabilityOptions" [value]="availability()" (valueChange)="availability.set($event)" /> }
         </div>
 
         @if (ref.failed()) {
@@ -92,17 +97,20 @@ type Tab = 'customers' | 'products';
                     <th>Product</th>
                     <th class="num">Unit price</th>
                     <th class="num">Available</th>
+                    <th>Status</th><th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   @for (p of productRows(); track p.id) {
                     <tr>
                       <td class="muted" data-label="SKU"><app-middle-text [value]="p.sku" /></td>
-                      <td class="main"><app-middle-text [value]="p.name" /></td>
+                      <td class="main"><span class="product-identity"><app-product-image [product]="p" (imageChanged)="ref.updateProductImage($event.id, $event.version)" /><a class="text-link" [routerLink]="['/reference/products', p.id]"><app-middle-text [value]="p.name" /></a></span></td>
                       <td class="num" data-label="Unit price">{{ p.unitPrice | currency }}</td>
                       <td class="num" data-label="Available">
                         <app-pill [label]="'' + p.availableStock" [tone]="p.availableStock === 0 ? 'red' : 'green'" />
                       </td>
+                      <td data-label="Status"><app-pill [label]="p.isActive === false ? 'Inactive' : 'Active'" [tone]="p.isActive === false ? 'gray' : 'green'" /></td>
+                      <td data-label="Actions"><a class="btn btn-ghost" [routerLink]="administrator() ? ['/reference/products', p.id, 'edit'] : ['/reference/products', p.id]">{{ administrator() ? 'Edit Product' : 'View details' }}</a></td>
                     </tr>
                   }
                 </tbody>
@@ -119,17 +127,22 @@ type Tab = 'customers' | 'products';
   `,
   styles: `
     .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    .product-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
   `,
 })
 export class ReferenceView {
   protected readonly ref = inject(Reference);
+  private readonly session = inject(Session);
+  protected readonly administrator = computed(() => this.session.user()?.role === 'Administrator');
+  protected readonly availability = signal('all');
+  protected readonly availabilityOptions = [{ value: 'all', label: 'All products' }, { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }];
 
   protected readonly sizes: SelectOption[] = [10, 25, 50].map((n) => ({ value: '' + n, label: '' + n }));
   protected readonly skeleton = [1, 2, 3, 4, 5];
-  protected readonly tab = signal<Tab>('customers');
+  protected readonly tab = signal<Tab>(inject(ActivatedRoute).snapshot.queryParamMap.get('tab') === 'products' ? 'products' : 'customers');
   protected readonly query = signal('');
   protected readonly pageSize = signal(10);
-  protected readonly page = linkedSignal<unknown, number>({ source: () => [this.tab(), this.query(), this.pageSize()], computation: () => 1 });
+  protected readonly page = linkedSignal<unknown, number>({ source: () => [this.tab(), this.query(), this.pageSize(), this.availability()], computation: () => 1 });
 
   private readonly customersFiltered = computed(() => {
     const q = this.query().trim().toLowerCase();
@@ -138,7 +151,8 @@ export class ReferenceView {
 
   private readonly productsFiltered = computed(() => {
     const q = this.query().trim().toLowerCase();
-    return this.ref.products().filter((p) => !q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q));
+    return this.ref.products().filter((p) => (this.availability() === 'all' || (p.isActive !== false) === (this.availability() === 'active')) &&
+      (!q || p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q)));
   });
 
   protected readonly total = computed(() =>

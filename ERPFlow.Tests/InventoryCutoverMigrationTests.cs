@@ -62,7 +62,7 @@ public sealed class InventoryCutoverMigrationTests
                 INSERT INTO JobcardItems(Id,JobcardId,ProductId,Quantity,UnitPrice)
                 VALUES({activePart},{activeJobcard},{product},3,10),({completedPart},{completedJobcard},{product},4,10);
                 """);
-            version = (await context.Products.SingleAsync()).RowVersion.ToArray();
+            version = await context.Products.Select(x => x.RowVersion).SingleAsync();
             await context.Database.MigrateAsync();
             await context.Database.MigrateAsync();
             Assert.Equal(InventoryAuthorityMode.Product, (await context.InventoryAuthorities.SingleAsync()).Mode);

@@ -247,14 +247,16 @@ public sealed partial class EquipmentWorkflowIntegrationTests
         order.Submit([product]);
         order.Approve(administrator.Id);
         var hasOrigins = await context.Database.SqlQuery<int>($"SELECT COUNT(*) AS [Value] FROM sys.columns WHERE object_id=OBJECT_ID(N'SalesOrderItems') AND name=N'WarehouseId'").SingleAsync() != 0;
+        var legacyProduct = await LegacyProductFixture.InsertIfLegacyAsync(context, product);
+        if (!legacyProduct) context.Products.Add(product);
         if (hasOrigins)
         {
-            context.AddRange(customer, product, administrator, technician, order);
+            context.AddRange(customer, administrator, technician, order);
             await context.SaveChangesAsync();
         }
         else
         {
-            context.AddRange(customer, product, administrator, technician);
+            context.AddRange(customer, administrator, technician);
             await context.SaveChangesAsync();
             await context.Database.ExecuteSqlInterpolatedAsync($"""
                 INSERT INTO SalesOrders(Id,CustomerId,CreatedByUserId,Status,CreatedAt,SubmittedAt,DecidedAt)

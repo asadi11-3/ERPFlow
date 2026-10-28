@@ -31,7 +31,7 @@ public sealed class StockTransferMigrationTests
         await using var database = await InventoryTestDatabase.CreateAsync("20261026203843_GoodsReceiptPartialReceiving");
         var seed = await database.SeedAsync();
         await using var context = database.Context();
-        var product = await context.Products.AsNoTracking().SingleAsync();
+        var product = await context.Products.AsNoTracking().Select(x => new { x.RowVersion }).SingleAsync();
         var reservation = await context.StockReservations.AsNoTracking().SingleAsync();
         var versions = await context.WarehouseStocks.AsNoTracking().ToDictionaryAsync(x => x.Id, x => x.RowVersion);
         await context.Database.MigrateAsync(); await context.Database.MigrateAsync();

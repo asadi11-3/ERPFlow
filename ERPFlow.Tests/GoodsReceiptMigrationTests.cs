@@ -33,7 +33,7 @@ public sealed class GoodsReceiptMigrationTests
         var inventory = await database.SeedAsync();
         var supplier = Guid.NewGuid(); var po = Guid.NewGuid(); var line = Guid.NewGuid(); var approver = Guid.NewGuid();
         await using var context = database.Context();
-        var before = (await context.Products.AsNoTracking().SingleAsync()).RowVersion;
+        var before = await context.Products.AsNoTracking().Select(x => x.RowVersion).SingleAsync();
         await context.Database.ExecuteSqlInterpolatedAsync($"""
             INSERT INTO Suppliers(Id,SupplierCode,Name,IsActive,CreatedAt) VALUES({supplier},N'OLD-GRN',N'Preserved supplier',1,SYSUTCDATETIME());
             INSERT INTO AppUsers(Id,Name,Email,Role,PasswordHash,CreatedAt) VALUES({approver},N'Approver',N'grn-upgrade@example.test',2,N'fixture',SYSUTCDATETIME());

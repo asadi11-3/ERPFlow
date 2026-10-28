@@ -58,9 +58,9 @@ public sealed class EfServicePersistence(ERPFlowDbContext context) : IServicePer
 
     public async Task<IReadOnlyList<Product>> GetProductsAsync(
         IReadOnlyCollection<Guid> productIds,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default, bool lockForCatalog = false)
     {
-        return await context.Products
+        return await (lockForCatalog ? context.Products.FromSqlRaw("SELECT * FROM Products WITH (UPDLOCK,HOLDLOCK)") : context.Products)
             .Where(p => productIds.Contains(p.Id))
             .ToListAsync(cancellationToken);
     }

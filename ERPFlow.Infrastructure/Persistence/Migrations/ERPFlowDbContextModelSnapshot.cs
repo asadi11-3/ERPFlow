@@ -335,6 +335,11 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         .HasPrecision(7)
                         .HasColumnType("datetime2(7)");
 
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -376,6 +381,176 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         });
 
                     b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Entities.ProductCatalogChange", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool?>("PreviousIsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("PreviousName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal?>("PreviousUnitPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Sku")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorId");
+
+                    b.HasIndex("ProductId", "CreatedAt");
+
+                    b.ToTable("ProductCatalogChanges", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ProductCatalogChanges_Action", "[Action] IN ('Created','Updated','Activated','Deactivated')");
+
+                            t.HasCheckConstraint("CK_ProductCatalogChanges_Price", "[UnitPrice] >= 0 AND ([PreviousUnitPrice] IS NULL OR [PreviousUnitPrice] >= 0)");
+                        });
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Entities.ProductImage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<long>("FileSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("Height")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int>("Width")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId")
+                        .IsUnique();
+
+                    b.HasIndex("StorageKey")
+                        .IsUnique();
+
+                    b.ToTable("ProductImages", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ProductImages_ContentType", "[ContentType] IN ('image/jpeg', 'image/png', 'image/webp')");
+
+                            t.HasCheckConstraint("CK_ProductImages_Dimensions", "[Width] > 0 AND [Height] > 0 AND [Width] <= 8192 AND [Height] <= 8192 AND CAST([Width] AS bigint) * [Height] <= 16000000");
+
+                            t.HasCheckConstraint("CK_ProductImages_FileSize", "[FileSize] > 0 AND [FileSize] <= 5242880");
+                        });
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Entities.ProductImageObject", b =>
+                {
+                    b.Property<string>("StorageKey")
+                        .HasMaxLength(32)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(32)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("State")
+                        .HasColumnType("int");
+
+                    b.HasKey("StorageKey");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("State", "ExpiresAt");
+
+                    b.ToTable("ProductImageObjects", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ProductImageObjects_State", "[State] IN (0, 1, 2)");
+                        });
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Entities.ProductImageStore", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Identity")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsUnicode(false)
+                        .HasColumnType("varchar(64)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ProductImageStores", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ProductImageStores_Singleton", "[Id] = 1");
+                        });
                 });
 
             modelBuilder.Entity("ERPFlow.Domain.Entities.SalesOrder", b =>
@@ -1649,6 +1824,45 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("SalesOrderId")
                         .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Entities.ProductCatalogChange", b =>
+                {
+                    b.HasOne("ERPFlow.Domain.Entities.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERPFlow.Domain.Entities.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Entities.ProductImage", b =>
+                {
+                    b.HasOne("ERPFlow.Domain.Entities.Product", null)
+                        .WithOne()
+                        .HasForeignKey("ERPFlow.Domain.Entities.ProductImage", "ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ERPFlow.Domain.Entities.ProductImageObject", null)
+                        .WithOne()
+                        .HasForeignKey("ERPFlow.Domain.Entities.ProductImage", "StorageKey")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Entities.ProductImageObject", b =>
+                {
+                    b.HasOne("ERPFlow.Domain.Entities.Product", null)
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ERPFlow.Domain.Entities.SalesOrder", b =>

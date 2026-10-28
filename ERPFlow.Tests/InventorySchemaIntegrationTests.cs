@@ -73,7 +73,8 @@ public sealed class InventorySchemaIntegrationTests
             var jobcard = new Jobcard("LEGACY-JC", customer.Id, asset.Id, "Tech", "Keep fault");
             product.ReserveQuantity(3);
             jobcard.AddPart(product, 3);
-            context.AddRange(actor, customer, product);
+            if (!await LegacyProductFixture.InsertIfLegacyAsync(context, product)) context.Products.Add(product);
+            context.AddRange(actor, customer);
             await context.SaveChangesAsync();
             await context.Database.ExecuteSqlInterpolatedAsync($"""
                 INSERT INTO SalesOrders(Id,CustomerId,CreatedByUserId,Status,CreatedAt,SubmittedAt,DecidedAt)

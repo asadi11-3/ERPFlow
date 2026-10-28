@@ -7,7 +7,10 @@ public sealed record ProductReference(
     string Name,
     string Sku,
     decimal UnitPrice,
-    int AvailableStock);
+    int AvailableStock,
+    bool HasImage = false,
+    string? ImageVersion = null,
+    bool IsActive = true);
 
 public interface IReferenceDataQueries
 {

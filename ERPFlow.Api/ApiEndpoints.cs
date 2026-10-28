@@ -31,6 +31,8 @@ public static class ApiEndpoints
         api.MapGoodsReceiptEndpoints();
         api.MapStockTransferEndpoints();
         api.MapInventoryQueryEndpoints();
+        api.MapProductImageEndpoints();
+        api.MapProductCatalogEndpoints();
 
         api.MapPost("/auth/login", LoginAsync)
             .AllowAnonymous()

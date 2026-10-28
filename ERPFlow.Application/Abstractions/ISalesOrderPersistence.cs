@@ -21,7 +21,7 @@ public interface ISalesOrderPersistence
 
     Task<IReadOnlyList<Product>> GetProductsAsync(
         IReadOnlyCollection<Guid> productIds,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default, bool lockForCatalog = false);
 
     Task<SalesOrder?> GetOrderAsync(
         Guid orderId,

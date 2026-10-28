@@ -67,10 +67,13 @@ public sealed class EfProcurementPersistence(ERPFlowDbContext context) : IProcur
     public Task<Supplier?> FindSupplierAsync(Guid id, bool lockForUse, CancellationToken ct) => ConflictAsync(() => lockForUse
         ? context.Suppliers.FromSqlInterpolated($"SELECT * FROM Suppliers WITH (UPDLOCK,HOLDLOCK) WHERE Id={id}").SingleOrDefaultAsync(ct)
         : context.Suppliers.AsNoTracking().SingleOrDefaultAsync(x => x.Id == id, ct));
-    public async Task<Guid?> FindMissingProductAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct)
+    public async Task<Guid?> FindMissingProductAsync(IReadOnlyCollection<Guid> ids, CancellationToken ct, bool requireActive = false)
     {
-        var found = await context.Products.AsNoTracking().Where(x => ids.Contains(x.Id)).Select(x => x.Id).ToArrayAsync(ct);
-        return ids.Except(found).Select(x => (Guid?)x).FirstOrDefault();
+        var found = await context.Products.FromSqlRaw("SELECT * FROM Products WITH (HOLDLOCK)")
+            .AsNoTracking().Where(x => ids.Contains(x.Id)).Select(x => new { x.Id, x.IsActive }).ToArrayAsync(ct);
+        if (requireActive && found.Any(x => !x.IsActive))
+            throw new WorkflowConflictException("Inactive products cannot be selected or submitted in new purchase commitments.");
+        return ids.Except(found.Select(x => x.Id)).Select(x => (Guid?)x).FirstOrDefault();
     }
     public Task<PageResult<PurchaseOrder>> ListOrdersAsync(Guid? owner, int page, int size, PurchaseOrderStatus? status, bool receivingOnly, CancellationToken ct)
     {
