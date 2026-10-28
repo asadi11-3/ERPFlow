@@ -23,9 +23,10 @@ public sealed class PurchaseOrder
     {
         if (creatorId == Guid.Empty) throw new ArgumentException("PO creator is required.");
         Id = Guid.NewGuid();
-        PONumber = $"PO-{DateTime.UtcNow:yyyyMMdd}-{Id:N}";
+        var now = BusinessClock.UtcNow;
+        PONumber = $"PO-{now:yyyyMMdd}-{Id:N}";
         CreatedByUserId = creatorId;
-        CreatedAt = DateTime.UtcNow;
+        CreatedAt = now;
         Edit(supplierId, warehouseId, items, notes);
     }
 
@@ -181,7 +182,7 @@ public sealed class PurchaseOrderHistory
         ToStatus = to;
         Comments = comments;
         Revision = revision;
-        CreatedAt = DateTime.UtcNow;
+        CreatedAt = BusinessClock.UtcNow;
     }
     public Guid Id { get; private set; }
     public Guid PurchaseOrderId { get; private set; }

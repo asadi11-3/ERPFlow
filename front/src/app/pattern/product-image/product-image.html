@@ -18,7 +18,7 @@
     } @else if (state.url(); as url) {
       <img [src]="url" [alt]="product().name" width="512" height="384" (error)="state.displayFailed()" />
     } @else {
-      <div class="placeholder"><app-icon name="assets" /><p>{{ state.loading() ? 'Loading image…' : state.exists() ? 'Image unavailable' : 'No product image yet' }}</p></div>
+      <div class="placeholder"><app-icon name="assets" /><p>{{ state.loading() ? 'Loading image…' : state.productMissing() ? 'Product unavailable' : state.imageStateUncertain() || state.exists() ? 'Image unavailable' : 'No product image yet' }}</p></div>
     }
   </div>
 
@@ -28,7 +28,7 @@
   @if (administrator()) {
     <div class="field image-file">
       <label [for]="'product-image-file-' + product().id">{{ state.exists() ? 'Replace image' : 'Upload image' }}</label>
-      <input [id]="'product-image-file-' + product().id" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" [disabled]="state.busy() || state.loading()" [attr.aria-describedby]="'product-image-help-' + product().id" (change)="choose($event)" />
+      <input [id]="'product-image-file-' + product().id" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" [disabled]="state.busy() || state.loading() || state.productMissing() || state.imageStateUncertain()" [attr.aria-describedby]="'product-image-help-' + product().id" (change)="choose($event)" />
       <p class="help" [id]="'product-image-help-' + product().id">JPEG, PNG, or WebP · Up to 5 MiB. The server validates and removes image metadata.</p>
     </div>
     @if (state.selectedName()) { <p class="selected-name">Selected: {{ state.selectedName() }}</p> }

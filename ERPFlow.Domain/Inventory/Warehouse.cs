@@ -15,7 +15,7 @@ public sealed class Warehouse
         Code = code.Trim().ToUpperInvariant();
         Name = name.Trim();
         IsActive = true;
-        CreatedAt = DateTime.UtcNow;
+        CreatedAt = BusinessClock.UtcNow;
     }
 
     public Guid Id { get; private set; }

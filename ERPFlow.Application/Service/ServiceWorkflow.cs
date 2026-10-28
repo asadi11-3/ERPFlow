@@ -1,5 +1,6 @@
 using ERPFlow.Application.Abstractions;
 using ERPFlow.Application.Common;
+using ERPFlow.Domain;
 using ERPFlow.Application.Inventory;
 using ERPFlow.Domain.Entities;
 using ERPFlow.Domain.Enums;
@@ -56,7 +57,7 @@ public sealed class ServiceWorkflow(
             }
         }
 
-        var ticketNumber = $"SRV-{DateTime.UtcNow:yyMMdd}-{Guid.NewGuid():N}";
+        var ticketNumber = $"SRV-{BusinessClock.UtcNow:yyMMdd}-{Guid.NewGuid():N}";
         var jobcard = new Jobcard(
             ticketNumber,
             command.CustomerId,

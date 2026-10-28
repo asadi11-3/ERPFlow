@@ -17,7 +17,29 @@ using Microsoft.OpenApi;
 
 var activateInventory = args.Contains("--activate-warehouse-inventory", StringComparer.Ordinal);
 var resetDevelopmentDatabase = args.Contains("--reset-development-database", StringComparer.Ordinal);
-var builder = WebApplication.CreateBuilder(args.Where(arg => arg is not "--activate-warehouse-inventory" and not "--reset-development-database").ToArray());
+var seedProfessionalDemo = args.Contains("--seed-professional-demo", StringComparer.Ordinal);
+var dryRunProfessionalDemo = args.Contains("--dry-run", StringComparer.Ordinal);
+var demoDatabaseName = ReadOption(args, "--demo-database");
+var demoPassword = ReadOption(args, "--demo-password") ?? Environment.GetEnvironmentVariable("ERPFLOW_DEMO_PASSWORD");
+var builderArgs = args.Where(arg => arg is not "--activate-warehouse-inventory" and not "--reset-development-database" and
+    not "--seed-professional-demo" and not "--dry-run" && !arg.StartsWith("--demo-database=", StringComparison.Ordinal) &&
+    !arg.StartsWith("--demo-password=", StringComparison.Ordinal)).ToArray();
+if (demoDatabaseName is not null)
+    builderArgs = builderArgs.Where(arg => arg != "--demo-database" && arg != demoDatabaseName).ToArray();
+if (demoPassword is not null)
+    builderArgs = builderArgs.Where(arg => arg != "--demo-password" && arg != demoPassword).ToArray();
+var builder = WebApplication.CreateBuilder(builderArgs);
+
+if (seedProfessionalDemo && !builder.Environment.IsDevelopment())
+    throw new InvalidOperationException("Professional demo seeding requires the Development environment.");
+if (seedProfessionalDemo && string.IsNullOrWhiteSpace(demoDatabaseName))
+    throw new InvalidOperationException("Professional demo seeding requires --demo-database with a new local database name.");
+if (seedProfessionalDemo && !dryRunProfessionalDemo && string.IsNullOrWhiteSpace(demoPassword))
+    throw new InvalidOperationException("Professional demo seeding requires ERPFLOW_DEMO_PASSWORD or --demo-password.");
+
+var connectionString = seedProfessionalDemo
+    ? ProfessionalDemoDatabaseGuard.BuildLocalConnectionString(demoDatabaseName!)
+    : string.Empty;
 
 if (builder.Environment.IsDevelopment())
 {
@@ -135,8 +157,10 @@ builder.Services.AddOpenApi(options =>
     });
 });
 builder.Services.AddInfrastructure(serviceProvider =>
-    serviceProvider.GetRequiredService<IConfiguration>().GetConnectionString("ERPFlowDb")
-        ?? throw new InvalidOperationException("Connection string 'ERPFlowDb' is not configured."));
+    seedProfessionalDemo
+        ? connectionString
+        : serviceProvider.GetRequiredService<IConfiguration>().GetConnectionString("ERPFlowDb")
+            ?? throw new InvalidOperationException("Connection string 'ERPFlowDb' is not configured."));
 builder.Services.AddSingleton<IProductImageStorage>(_ => new LocalProductImageStorage(new ProductImageOptions
 {
     RootPath = builder.Configuration["ProductImages:RootPath"],
@@ -183,16 +207,23 @@ if (app.Environment.IsDevelopment())
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<ERPFlowDbContext>();
+    if (seedProfessionalDemo)
+    {
+        var result = await scope.ServiceProvider.GetRequiredService<ProfessionalDemoSeeder>()
+            .SeedAsync(new ProfessionalDemoSeedOptions(demoDatabaseName!, demoPassword ?? string.Empty, dryRunProfessionalDemo));
+        app.Logger.LogInformation("Professional demo seed {Status}: {Summary}", result.Applied ? "applied" : "validated", result.Summary);
+        return;
+    }
+
     if (resetDevelopmentDatabase)
         await context.Database.EnsureDeletedAsync();
     await context.Database.MigrateAsync();
-    var demoPassword = builder.Configuration["DemoUsers:Password"] ?? DevelopmentDataSeeder.DefaultPassword;
-    var warehouseActive = await context.InventoryAuthorities.AsNoTracking()
-        .AnyAsync(a => a.Mode == InventoryAuthorityMode.Warehouse);
-    if (!warehouseActive && !string.IsNullOrWhiteSpace(demoPassword))
+    if (builder.Environment.IsDevelopment() && builder.Configuration.GetValue<bool>("DemoUsers:EnableAutomaticSeed"))
     {
-        await scope.ServiceProvider.GetRequiredService<DevelopmentDataSeeder>()
-            .SeedAsync(app.Environment.EnvironmentName, demoPassword, allowProduction: true);
+        var configuredDemoPassword = builder.Configuration["DemoUsers:Password"] ?? DevelopmentDataSeeder.DefaultPassword;
+        if (!string.IsNullOrWhiteSpace(configuredDemoPassword))
+            await scope.ServiceProvider.GetRequiredService<DevelopmentDataSeeder>()
+                .SeedAsync(app.Environment.EnvironmentName, configuredDemoPassword);
     }
     if (activateInventory)
     {
@@ -205,5 +236,14 @@ if (activateInventory) return;
 
 app.MapApiEndpoints();
 app.Run();
+
+static string? ReadOption(string[] arguments, string name)
+{
+    var prefix = name + "=";
+    var inline = arguments.FirstOrDefault(argument => argument.StartsWith(prefix, StringComparison.Ordinal));
+    if (inline is not null) return inline[prefix.Length..];
+    var index = Array.IndexOf(arguments, name);
+    return index >= 0 && index + 1 < arguments.Length ? arguments[index + 1] : null;
+}
 
 public partial class Program;

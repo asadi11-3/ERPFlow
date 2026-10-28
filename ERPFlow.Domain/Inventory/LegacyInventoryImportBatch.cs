@@ -13,7 +13,7 @@ public sealed class LegacyInventoryImportBatch
         SourceFingerprint = fingerprint.ToArray();
         DefaultWarehouseId = LegacyDefaultWarehouse.Id;
         FormatVersion = 1;
-        PreparedAt = DateTime.UtcNow;
+        PreparedAt = BusinessClock.UtcNow;
     }
 
     public Guid Id { get; private set; }

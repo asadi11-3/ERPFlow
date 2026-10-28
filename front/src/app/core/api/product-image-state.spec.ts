@@ -85,6 +85,24 @@ describe('Product image lifecycle state', () => {
     expect(state.busy()).toBe(false);
   });
 
+  it('creates a first image without If-Match, then refreshes the new strong ETag', () => {
+    state.connect({ ...product, hasImage: false, imageVersion: null });
+    state.changed.subscribe(change => state.connect({ ...product, hasImage: change.version !== null, imageVersion: change.version }));
+    state.select(new File(['image'], 'new.png', { type: 'image/png' }));
+    state.upload();
+    const mutation = http.expectOne(path);
+    expect(mutation.request.headers.has('If-Match')).toBe(false);
+    expect(mutation.request.headers.get('If-None-Match')).toBe('*');
+    mutation.flush({}, { status: 201, statusText: 'Created', headers: { ETag: nextVersion } });
+    const refresh = http.expectOne(path);
+    expect(refresh.cancelled).toBe(false);
+    refresh.flush(new Blob(['pixels'], { type: 'image/png' }), { headers: { ETag: nextVersion } });
+    expect(state.version()).toBe(nextVersion);
+    expect(state.exists()).toBe(true);
+    expect(state.selectionUrl()).toBeNull();
+    expect(state.error()).toBe('');
+  });
+
   it('clears deleted bytes and association immediately without a blind follow-up write', () => {
     state.connect(product); read();
     const old = state.url();
@@ -127,12 +145,53 @@ describe('Product image lifecycle state', () => {
     http.expectNone(path);
   });
 
-  it('clears absent images after a 404 read', () => {
+  it('clears absent images only after the explicit missing-image 404 code', async () => {
     state.connect(product);
-    http.expectOne(path).flush(null, { status: 404, statusText: 'Not Found' });
+    http.expectOne(path).flush(new Blob(['{"code":"product_image_missing"}'], { type: 'application/problem+json' }),
+      { status: 404, statusText: 'Not Found' });
+    await Promise.resolve();
     expect(state.exists()).toBe(false);
     expect(state.url()).toBeNull();
     expect(state.version()).toBeNull();
+  });
+
+  it('blocks mutations and reports a missing product 404 rather than showing a normal empty image', async () => {
+    state.connect(product);
+    http.expectOne(path).flush(new Blob(['{"code":"product_not_found"}'], { type: 'application/problem+json' }),
+      { status: 404, statusText: 'Not Found' });
+    await Promise.resolve();
+    expect(state.error()).toContain('product is no longer available');
+    state.select(new File(['image'], 'new.png', { type: 'image/png' }));
+    state.upload();
+    expect(state.selectionUrl()).not.toBeNull();
+    http.expectNone(path);
+  });
+
+  it('withholds writes after an untagged 404 until a successful refresh identifies the image state', async () => {
+    const changes = vi.fn();
+    state.changed.subscribe(changes);
+    state.connect(product);
+    http.expectOne(path).flush(new Blob(['{}'], { type: 'application/problem+json' }),
+      { status: 404, statusText: 'Not Found' });
+    await Promise.resolve();
+    expect(state.imageStateUncertain()).toBe(true);
+    expect(state.productMissing()).toBe(false);
+    expect(state.exists()).toBe(true);
+    expect(state.version()).toBe(version);
+    expect(state.error()).toContain('unexpected not-found response');
+    expect(changes).not.toHaveBeenCalled();
+
+    state.select(new File(['image'], 'new.png', { type: 'image/png' }));
+    expect(state.selectionUrl()).not.toBeNull();
+    state.upload();
+    http.expectNone(path);
+
+    state.refresh();
+    read();
+    expect(state.imageStateUncertain()).toBe(false);
+    state.upload();
+    http.expectOne(path).flush({ version: nextVersion }, { headers: { ETag: nextVersion } });
+    read(nextVersion);
   });
 
   it('prevents mutations by read-only users and duplicate submissions while busy', () => {

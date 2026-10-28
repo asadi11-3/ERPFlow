@@ -24,7 +24,8 @@ export class ProductImage {
   private readonly session = inject(Session);
   private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('dialog');
   protected readonly canSave = computed(() => !!this.state.selectionUrl() && !this.state.busy() &&
-    !this.state.loading() && (!this.state.exists() || !!this.state.version()));
+    !this.state.loading() && !this.state.productMissing() && !this.state.imageStateUncertain() &&
+    (!this.state.exists() || !!this.state.version()));
 
   constructor() {
     effect(() => {

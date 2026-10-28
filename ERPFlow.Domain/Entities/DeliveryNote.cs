@@ -30,7 +30,7 @@ public sealed class DeliveryNote
         DeliveryNumber = deliveryNumber.Trim();
         Carrier = string.IsNullOrWhiteSpace(carrier) ? "Standard Dispatch" : carrier.Trim();
         TrackingNumber = trackingNumber?.Trim();
-        DispatchedAt = DateTime.UtcNow;
+        DispatchedAt = BusinessClock.UtcNow;
     }
 
     public Guid Id { get; private set; }
@@ -51,6 +51,6 @@ public sealed class DeliveryNote
 
     public void MarkDelivered()
     {
-        DeliveredAt = DateTime.UtcNow;
+        DeliveredAt = BusinessClock.UtcNow;
     }
 }

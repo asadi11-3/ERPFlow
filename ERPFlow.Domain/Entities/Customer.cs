@@ -8,7 +8,7 @@ public sealed class Customer
         Name = RequireText(name, nameof(name));
         Email = RequireText(email, nameof(email));
         IsActive = true;
-        CreatedAt = DateTime.UtcNow;
+        CreatedAt = BusinessClock.UtcNow;
     }
 
     public Guid Id { get; private set; }

@@ -20,7 +20,7 @@ public sealed class Product
         Sku = RequireText(sku, nameof(sku));
         UnitPrice = unitPrice;
         StockOnHand = stockOnHand;
-        CreatedAt = DateTime.UtcNow;
+        CreatedAt = BusinessClock.UtcNow;
     }
 
     public Guid Id { get; private set; }

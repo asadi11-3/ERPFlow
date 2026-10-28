@@ -4,7 +4,7 @@ import { Subject, Subscription } from 'rxjs';
 
 import { Session } from '../auth/session';
 import type { Product } from './models';
-import { imageFileError, productImageError } from './product-image-errors';
+import { imageFileError, productImageError, productImageNotFound } from './product-image-errors';
 import { ProductImages, strongImageVersion } from './product-images';
 
 @Injectable()
@@ -22,6 +22,8 @@ export class ProductImageState {
   readonly selectedName = signal('');
   readonly version = signal<string | null>(null);
   readonly exists = signal(false);
+  readonly productMissing = signal(false);
+  readonly imageStateUncertain = signal(false);
   readonly loading = signal(false);
   readonly busy = signal(false);
   readonly error = signal('');
@@ -50,6 +52,8 @@ export class ProductImageState {
     this.id = product.id;
     this.exists.set(!!product.hasImage);
     this.version.set(strongImageVersion(product.imageVersion) ? product.imageVersion : null);
+    this.productMissing.set(false);
+    this.imageStateUncertain.set(false);
     this.clearSelection();
     this.clearUrl();
     if (product.hasImage) this.refresh();
@@ -69,6 +73,8 @@ export class ProductImageState {
         this.url.set(URL.createObjectURL(image.blob));
         this.version.set(image.version);
         this.exists.set(true);
+        this.productMissing.set(false);
+        this.imageStateUncertain.set(false);
         this.loading.set(false);
         if (image.version) this.publish(image.version);
         else this.error.set('The image version is unavailable. Refresh before replacing or deleting it.');
@@ -77,10 +83,28 @@ export class ProductImageState {
         if (generation !== this.generation || token !== this.session.token()) return;
         this.loading.set(false);
         if (error instanceof HttpErrorResponse && error.status === 404) {
-          this.exists.set(false);
-          this.version.set(null);
-          this.publish(null);
-        } else this.error.set(productImageError(error));
+          switch (productImageNotFound(error)) {
+            case 'image-missing':
+              this.exists.set(false);
+              this.version.set(null);
+              this.productMissing.set(false);
+              this.imageStateUncertain.set(false);
+              this.publish(null);
+              return;
+            case 'product-missing':
+              this.exists.set(false);
+              this.version.set(null);
+              this.productMissing.set(true);
+              this.imageStateUncertain.set(false);
+              this.error.set(productImageError(error));
+              return;
+            default:
+              this.imageStateUncertain.set(true);
+              this.error.set(productImageError(error));
+              return;
+          }
+        }
+        this.error.set(productImageError(error));
       },
     });
   }
@@ -157,7 +181,7 @@ export class ProductImageState {
 
   private canMutate(): boolean {
     return !this.busy() && !this.loading() && this.session.user()?.role === 'Administrator' &&
-      (!this.exists() || this.version() !== null);
+      !this.productMissing() && !this.imageStateUncertain() && (!this.exists() || this.version() !== null);
   }
 
   private beginWrite(): void {
@@ -195,6 +219,8 @@ export class ProductImageState {
     this.busy.set(false);
     this.version.set(null);
     this.exists.set(false);
+    this.productMissing.set(false);
+    this.imageStateUncertain.set(false);
     this.referenceKey = '';
   }
 }

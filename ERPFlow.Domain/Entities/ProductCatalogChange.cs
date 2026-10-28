@@ -18,7 +18,7 @@ public sealed class ProductCatalogChange
         UnitPrice = product.UnitPrice;
         PreviousIsActive = previousActive;
         IsActive = product.IsActive;
-        CreatedAt = DateTime.UtcNow;
+        CreatedAt = BusinessClock.UtcNow;
     }
 
     public Guid Id { get; private set; }

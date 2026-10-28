@@ -25,7 +25,7 @@ public sealed class StockReservation
         ProductId = productId;
         Quantity = quantity;
         WarehouseId = warehouseId;
-        CreatedAt = DateTime.UtcNow;
+        CreatedAt = BusinessClock.UtcNow;
     }
 
     public Guid Id { get; private set; }
@@ -65,7 +65,7 @@ public sealed class StockReservation
 
         product.ReleaseReservedQuantity(Quantity);
         IsReleased = true;
-        ReleasedAt = DateTime.UtcNow;
+        ReleasedAt = BusinessClock.UtcNow;
         ClosureKind = StockReservationClosureKind.Released;
     }
 
@@ -85,7 +85,7 @@ public sealed class StockReservation
 
         product.ConsumeReservedQuantity(Quantity);
         IsReleased = true;
-        ReleasedAt = DateTime.UtcNow;
+        ReleasedAt = BusinessClock.UtcNow;
         ClosureKind = StockReservationClosureKind.Consumed;
     }
 
@@ -104,7 +104,7 @@ public sealed class StockReservation
         if (IsReleased || IsHistorical || !WarehouseId.HasValue || !Enum.IsDefined(kind))
             throw new InvalidOperationException("Only an active exact-source warehouse reservation can close.");
         IsReleased = true;
-        ReleasedAt = DateTime.UtcNow;
+        ReleasedAt = BusinessClock.UtcNow;
         ClosureKind = kind;
     }
 }

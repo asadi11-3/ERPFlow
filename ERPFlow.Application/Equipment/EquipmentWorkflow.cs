@@ -1,5 +1,6 @@
 using ERPFlow.Application.Abstractions;
 using ERPFlow.Application.Common;
+using ERPFlow.Domain;
 using ERPFlow.Application.Inventory;
 using ERPFlow.Domain.Entities;
 using ERPFlow.Domain.Enums;
@@ -71,7 +72,7 @@ public sealed class EquipmentWorkflow(
             throw new WorkflowConflictException(exception.Message, exception);
         }
 
-        var deliveryNumber = $"DN-{DateTime.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid().ToString("N")[..20]}";
+        var deliveryNumber = $"DN-{BusinessClock.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid().ToString("N")[..20]}";
         var delivery = new DeliveryNote(
             order.Id,
             order.CustomerId,
@@ -89,7 +90,7 @@ public sealed class EquipmentWorkflow(
                 serial.ProductId,
                 order.CustomerId,
                 order.Id,
-                DateTime.UtcNow.AddYears(1));
+                BusinessClock.UtcNow.AddYears(1));
             persistence.AddMachineAsset(asset);
         }
 

@@ -553,6 +553,96 @@ namespace ERPFlow.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ERPFlow.Domain.Entities.ProfessionalDemoSeedManifest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CountsJson")
+                        .IsRequired()
+                        .HasMaxLength(8000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DatabaseName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("ScenarioKey")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("ValidationJson")
+                        .IsRequired()
+                        .HasMaxLength(8000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Version")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScenarioKey", "Version")
+                        .IsUnique();
+
+                    b.ToTable("ProfessionalDemoSeedManifests", (string)null);
+                });
+
+            modelBuilder.Entity("ERPFlow.Domain.Entities.ProfessionalDemoSeedOperation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasPrecision(0)
+                        .HasColumnType("datetime2(0)");
+
+                    b.Property<string>("InputFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("OperationKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("OperationType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<Guid?>("ResultDocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ScenarioKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasPrecision(0)
+                        .HasColumnType("datetime2(0)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScenarioKey", "OperationKey")
+                        .IsUnique();
+
+                    b.ToTable("ProfessionalDemoSeedOperations", (string)null);
+                });
+
             modelBuilder.Entity("ERPFlow.Domain.Entities.SalesOrder", b =>
                 {
                     b.Property<Guid>("Id")

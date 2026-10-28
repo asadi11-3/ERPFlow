@@ -34,6 +34,7 @@ public static class DependencyInjection
         services.AddScoped<IServicePersistence, EfServicePersistence>();
         services.AddScoped<IServiceWorkflow, ServiceWorkflow>();
         services.AddScoped<DevelopmentDataSeeder>();
+        services.AddScoped<ProfessionalDemoSeeder>();
         services.AddSingleton<IInventoryWriteGate, ProductAuthorityWriteGate>();
         services.AddScoped<IInventoryPosting, EfInventoryPosting>();
         services.AddScoped<IWarehouseSourcePolicy, ProductAuthorityWarehouseSourcePolicy>();

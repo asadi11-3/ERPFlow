@@ -106,6 +106,10 @@ public static class ProductImageEndpoints
             (!EntityTagHeaderValue.TryParseStrictList(raw.Select(value => value ?? "").ToArray(), out validators) || validators.Count == 0))
             throw new ProductImageException(ProductImageError.InvalidImage, "Invalid If-None-Match header.");
         var download = await workflow.GetAsync(id, ct);
+        if (download is null)
+            return Results.Problem(statusCode: StatusCodes.Status404NotFound,
+                title: "Product image not found", detail: "The product does not have an image.",
+                extensions: new Dictionary<string, object?> { ["code"] = "product_image_missing" });
         http.Response.Headers.ETag = download.Image.Version;
         var current = EntityTagHeaderValue.Parse(download.Image.Version);
         if (validators is not null && validators.Any(value => value == EntityTagHeaderValue.Any || value.Compare(current, useStrongComparison: false)))

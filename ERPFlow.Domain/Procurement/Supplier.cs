@@ -13,7 +13,7 @@ public sealed class Supplier
         Edit(name, contactName, email, phone, address);
         Id = Guid.NewGuid();
         IsActive = true;
-        CreatedAt = DateTime.UtcNow;
+        CreatedAt = BusinessClock.UtcNow;
     }
 
     public Guid Id { get; private set; }

@@ -17,7 +17,7 @@ public sealed record ProductImageDownload(ProductImageMetadata Image, byte[] Byt
 
 public enum ProductImageError
 {
-    InvalidImage, TooLarge, UnsupportedMediaType, PreconditionRequired, PreconditionFailed, NotFound
+    InvalidImage, TooLarge, UnsupportedMediaType, PreconditionRequired, PreconditionFailed, NotFound, ProductNotFound
 }
 
 public sealed class ProductImageException(ProductImageError error, string message) : Exception(message)
@@ -45,7 +45,7 @@ public interface IProductImageWorkflow
     Task<ProductImageWriteResult> PutAsync(Guid productId, Stream source, string fileName, string contentType,
         ProductImageCondition condition, CancellationToken cancellationToken = default);
     Task DeleteAsync(Guid productId, ProductImageCondition condition, CancellationToken cancellationToken = default);
-    Task<ProductImageDownload> GetAsync(Guid productId, CancellationToken cancellationToken = default);
+    Task<ProductImageDownload?> GetAsync(Guid productId, CancellationToken cancellationToken = default);
 }
 
 public interface IProductImageCleanup

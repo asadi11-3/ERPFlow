@@ -1,8 +1,13 @@
 using System.Net;
 using System.Net.Http.Headers;
+using System.Runtime.ExceptionServices;
 using System.Text.Json;
+using ERPFlow.Application.ProductImages;
 using ERPFlow.Domain.Enums;
+using ERPFlow.Infrastructure.ProductImages;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using SkiaSharp;
 using Xunit;
 
@@ -10,9 +15,20 @@ namespace ERPFlow.Tests;
 
 public sealed class ProductImageApiTests : IAsyncLifetime
 {
-    private readonly ProductImageFixture fixture = new();
+    private readonly AsyncLocal<bool> firstChanceObservation = new();
+    private readonly ProductImageFixture fixture;
     private const string StaleEtag = "\"AAAAAAAAAAA=\"";
     private string Path => $"/api/products/{fixture.ProductId}/image";
+
+    public ProductImageApiTests()
+    {
+        fixture = new ProductImageFixture(services =>
+        {
+            services.RemoveAll<IProductImageWorkflow>();
+            services.AddScoped<IProductImageWorkflow>(provider => new FirstChanceObservingWorkflow(
+                provider.GetRequiredService<EfProductImageWorkflow>(), firstChanceObservation));
+        });
+    }
 
     public Task InitializeAsync() => fixture.InitializeAsync();
     public Task DisposeAsync() => fixture.DisposeAsync();
@@ -298,11 +314,47 @@ public sealed class ProductImageApiTests : IAsyncLifetime
         await fixture.AuthenticateAsync();
         var missing = $"/api/products/{Guid.NewGuid()}/image";
         using var upload = ProductImageTestData.Upload(ProductImageTestData.Image(SKEncodedImageFormat.Png));
-        Assert.Equal(HttpStatusCode.NotFound, (await fixture.Client.PutAsync(missing, upload)).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await fixture.Client.GetAsync(missing)).StatusCode);
+        using var put = await fixture.Client.PutAsync(missing, upload);
+        await AssertNotFoundAsync(put, "product_not_found", "product");
+        using var get = await fixture.Client.GetAsync(missing);
+        await AssertNotFoundAsync(get, "product_not_found", "product");
         using var delete = new HttpRequestMessage(HttpMethod.Delete, missing);
         delete.Headers.TryAddWithoutValidation("If-Match", StaleEtag);
-        Assert.Equal(HttpStatusCode.NotFound, (await fixture.Client.SendAsync(delete)).StatusCode);
+        using var deleted = await fixture.Client.SendAsync(delete);
+        await AssertNotFoundAsync(deleted, "product_not_found", "product");
+    }
+
+    [Fact]
+    public async Task ExistingProductWithoutImageReturnsCodedNotFoundWithoutThrowingAndHostContinues()
+    {
+        await fixture.AuthenticateAsync();
+        var thrown = 0;
+        void Record(object? _, FirstChanceExceptionEventArgs eventArgs)
+        {
+            if (firstChanceObservation.Value && eventArgs.Exception is ProductImageException)
+                Interlocked.Increment(ref thrown);
+        }
+
+        AppDomain.CurrentDomain.FirstChanceException += Record;
+        HttpResponseMessage missing;
+        try
+        {
+            missing = await fixture.Client.GetAsync(Path);
+        }
+        finally
+        {
+            AppDomain.CurrentDomain.FirstChanceException -= Record;
+            firstChanceObservation.Value = false;
+        }
+
+        using (missing)
+            await AssertNotFoundAsync(missing, "product_image_missing", "image");
+        Assert.Equal(0, Volatile.Read(ref thrown));
+
+        using var created = await UploadAsync(ProductImageTestData.Image(SKEncodedImageFormat.Png));
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        using var available = await fixture.Client.GetAsync(Path);
+        Assert.Equal(HttpStatusCode.OK, available.StatusCode);
     }
 
     [Fact]
@@ -382,5 +434,39 @@ public sealed class ProductImageApiTests : IAsyncLifetime
         using var codec = SKCodec.Create(data);
         Assert.NotNull(codec);
         Assert.Equal((width, height), (codec.Info.Width, codec.Info.Height));
+    }
+
+    private static async Task AssertNotFoundAsync(HttpResponseMessage response, string code, string detailFragment)
+    {
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        using var problem = JsonDocument.Parse(await response.Content.ReadAsStreamAsync());
+        Assert.Equal(code, problem.RootElement.GetProperty("code").GetString());
+        Assert.Contains(detailFragment, problem.RootElement.GetProperty("detail").GetString(),
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private sealed class FirstChanceObservingWorkflow(
+        IProductImageWorkflow inner,
+        AsyncLocal<bool> observation) : IProductImageWorkflow
+    {
+        public Task<ProductImageWriteResult> PutAsync(Guid productId, Stream source, string fileName,
+            string contentType, ProductImageCondition condition, CancellationToken cancellationToken = default) =>
+            inner.PutAsync(productId, source, fileName, contentType, condition, cancellationToken);
+
+        public Task DeleteAsync(Guid productId, ProductImageCondition condition,
+            CancellationToken cancellationToken = default) => inner.DeleteAsync(productId, condition, cancellationToken);
+
+        public async Task<ProductImageDownload?> GetAsync(Guid productId, CancellationToken cancellationToken = default)
+        {
+            observation.Value = true;
+            try
+            {
+                return await inner.GetAsync(productId, cancellationToken);
+            }
+            finally
+            {
+                observation.Value = false;
+            }
+        }
     }
 }

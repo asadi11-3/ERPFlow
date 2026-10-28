@@ -21,12 +21,13 @@ public sealed class GoodsReceipt
             lines.Select(x => x.ProductId).Distinct().Count() != lines.Count)
             throw new ArgumentException("A receipt requires 1-100 distinct PO lines/products.");
         Id = Guid.NewGuid();
-        Number = $"GRN-{DateTime.UtcNow:yyyyMMdd}-{Id:N}";
+        var now = BusinessClock.UtcNow;
+        Number = $"GRN-{now:yyyyMMdd}-{Id:N}";
         PurchaseOrderId = purchaseOrderId;
         SupplierId = supplierId;
         WarehouseId = warehouseId;
         CreatedByUserId = actorId;
-        CreatedAt = DateTime.UtcNow;
+        CreatedAt = now;
         SupplierDeliveryReference = Text(supplierDeliveryReference, 100)?.ToUpperInvariant();
         Notes = Text(notes, 1000);
         foreach (var line in lines) _items.Add(new GoodsReceiptItem(Id, purchaseOrderId, line.PurchaseOrderItemId, line.ProductId, line.Quantity));
@@ -59,7 +60,7 @@ public sealed class GoodsReceipt
         EnsurePostable();
         if (actor == Guid.Empty) throw new ArgumentException("A posting actor is required.");
         PostedByUserId = actor;
-        PostedAt = DateTime.UtcNow;
+        PostedAt = BusinessClock.UtcNow;
         Status = GoodsReceiptStatus.Posted;
     }
     public void Cancel(Guid actor, string reason)
@@ -68,7 +69,7 @@ public sealed class GoodsReceipt
         if (actor == Guid.Empty) throw new ArgumentException("A cancellation actor is required.");
         CancellationReason = Text(reason, 1000) ?? throw new ArgumentException("A cancellation reason is required.");
         CancelledByUserId = actor;
-        CancelledAt = DateTime.UtcNow;
+        CancelledAt = BusinessClock.UtcNow;
         Status = GoodsReceiptStatus.Cancelled;
     }
     public static string? Text(string? value, int maximum)
@@ -116,7 +117,7 @@ public sealed class GoodsReceiptCommand
         RequestHash = hash.ToArray();
         GoodsReceiptId = receiptId;
         ResponseJson = responseJson;
-        CreatedAt = DateTime.UtcNow;
+        CreatedAt = BusinessClock.UtcNow;
     }
     public Guid Id { get; private set; }
     public Guid ActorId { get; private set; }

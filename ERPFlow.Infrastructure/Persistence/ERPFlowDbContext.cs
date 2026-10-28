@@ -46,6 +46,8 @@ public sealed partial class ERPFlowDbContext(DbContextOptions<ERPFlowDbContext> 
     public DbSet<GoodsReceipt> GoodsReceipts => Set<GoodsReceipt>();
     public DbSet<GoodsReceiptItem> GoodsReceiptItems => Set<GoodsReceiptItem>();
     public DbSet<GoodsReceiptCommand> GoodsReceiptCommands => Set<GoodsReceiptCommand>();
+    public DbSet<ProfessionalDemoSeedManifest> ProfessionalDemoSeedManifests => Set<ProfessionalDemoSeedManifest>();
+    public DbSet<ProfessionalDemoSeedOperation> ProfessionalDemoSeedOperations => Set<ProfessionalDemoSeedOperation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -1,4 +1,4 @@
-import { provideHttpClient, withInterceptors } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
@@ -81,11 +81,19 @@ describe('Product image HTTP contract', () => {
     expect(expire).toHaveBeenCalledOnce();
   });
 
-  it('parses problem details returned as a Blob', async () => {
+  it('parses the 403 ProblemDetails detail returned as a Blob', async () => {
     const result = firstValueFrom(api.read('p1'));
     const failed = expect(result).rejects.toMatchObject({ status: 403, error: { detail: 'Denied' } });
     http.expectOne(path).flush(new Blob(['{"detail":"Denied"}'], { type: 'application/problem+json' }),
       { status: 403, statusText: 'Forbidden' });
+    await failed;
+  });
+
+  it('parses the 404 ProblemDetails code returned as a Blob', async () => {
+    const result = firstValueFrom(api.read('p1'));
+    const failed = expect(result).rejects.toMatchObject({ status: 404, error: { code: 'product_image_missing' } });
+    http.expectOne(path).flush(new Blob(['{"code":"product_image_missing"}'], { type: 'application/problem+json' }),
+      { status: 404, statusText: 'Not Found' });
     await failed;
   });
 
@@ -112,5 +120,10 @@ describe('Product image file validation', () => {
   });
   it('handles unexpected errors without exposing technical details', () => {
     expect(productImageError(new TypeError('private stack'))).not.toContain('private stack');
+  });
+  it('distinguishes actionable image HTTP failures', () => {
+    const messages = [401, 403, 412, 428, 400, 413, 415, 0, 500]
+      .map(status => productImageError(new HttpErrorResponse({ status })));
+    expect(new Set(messages).size).toBe(messages.length);
   });
 });

@@ -39,7 +39,7 @@ public sealed class Jobcard
         ReportedFault = reportedFault.Trim();
         Priority = priority;
         Status = JobcardStatus.Open;
-        CreatedAt = DateTime.UtcNow;
+        CreatedAt = BusinessClock.UtcNow;
         _readOnlyItems = _items.AsReadOnly();
     }
 
@@ -122,7 +122,7 @@ public sealed class Jobcard
         }
 
         Status = JobcardStatus.Completed;
-        CompletedAt = DateTime.UtcNow;
+        CompletedAt = BusinessClock.UtcNow;
         TechnicianNotes = notes?.Trim();
         FinalMeterReading = meterReading;
         Revision++;

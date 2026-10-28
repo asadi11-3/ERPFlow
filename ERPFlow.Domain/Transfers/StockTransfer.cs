@@ -24,11 +24,12 @@ public sealed class StockTransfer
             throw new ArgumentException("A transfer requires 1-100 distinct products with positive quantities.");
 
         Id = Guid.NewGuid();
-        Number = $"TRF-{DateTime.UtcNow:yyyyMMdd}-{Id:N}";
+        var now = BusinessClock.UtcNow;
+        Number = $"TRF-{now:yyyyMMdd}-{Id:N}";
         SourceWarehouseId = sourceWarehouseId;
         DestinationWarehouseId = destinationWarehouseId;
         CreatedByUserId = actor;
-        CreatedAt = DateTime.UtcNow;
+        CreatedAt = now;
         foreach (var item in items) _items.Add(new StockTransferItem(Id, item.ProductId, item.Quantity));
     }
 
@@ -58,7 +59,7 @@ public sealed class StockTransfer
         EnsurePostable();
         if (actor == Guid.Empty) throw new ArgumentException("A posting actor is required.");
         PostedByUserId = actor;
-        PostedAt = DateTime.UtcNow;
+        PostedAt = BusinessClock.UtcNow;
         Status = StockTransferStatus.Posted;
     }
 
@@ -68,7 +69,7 @@ public sealed class StockTransfer
         if (actor == Guid.Empty) throw new ArgumentException("A cancellation actor is required.");
         CancellationReason = Text(reason, 1000) ?? throw new ArgumentException("A cancellation reason is required.");
         CancelledByUserId = actor;
-        CancelledAt = DateTime.UtcNow;
+        CancelledAt = BusinessClock.UtcNow;
         Status = StockTransferStatus.Cancelled;
     }
 
@@ -118,7 +119,7 @@ public sealed class StockTransferCommand
         RequestHash = hash.ToArray();
         StockTransferId = stockTransferId;
         ResponseJson = responseJson;
-        CreatedAt = DateTime.UtcNow;
+        CreatedAt = BusinessClock.UtcNow;
     }
 
     public Guid Id { get; private set; }

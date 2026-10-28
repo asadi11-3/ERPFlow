@@ -85,7 +85,9 @@ public sealed class EfProcurementPersistence(ERPFlowDbContext context) : IProcur
     }
     public Task<PurchaseOrder?> FindOrderAsync(Guid id, bool tracking, CancellationToken ct)
     {
-        var query = tracking ? context.PurchaseOrders : context.PurchaseOrders.AsNoTracking();
+        var query = tracking
+            ? context.PurchaseOrders.FromSqlInterpolated($"SELECT * FROM PurchaseOrders WITH (UPDLOCK,HOLDLOCK) WHERE Id={id}")
+            : context.PurchaseOrders.AsNoTracking();
         return ConflictAsync(() => query.Include(x => x.Items).AsSplitQuery().SingleOrDefaultAsync(x => x.Id == id, ct));
     }
     public async Task<IReadOnlyList<PurchaseOrderHistory>> ListHistoryAsync(Guid id, CancellationToken ct) =>

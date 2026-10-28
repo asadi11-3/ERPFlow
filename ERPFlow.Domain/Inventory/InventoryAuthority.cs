@@ -33,7 +33,7 @@ public sealed class InventoryAuthority
         PhysicalAttributionApproval = approval;
         SourceFingerprint = fingerprint.ToArray();
         CommandHash = commandHash.ToArray();
-        CompletedAt = DateTime.UtcNow;
+        CompletedAt = BusinessClock.UtcNow;
         ImportedStocks = stocks;
         ImportedReservations = reservations;
     }

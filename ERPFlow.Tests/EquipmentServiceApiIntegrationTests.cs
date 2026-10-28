@@ -272,7 +272,8 @@ public sealed class EquipmentServiceApiIntegrationTests : IAsyncLifetime
                     ["Jwt:Audience"] = "ERPFlow.Api.Tests",
                     ["Jwt:SigningKey"] = "integration-test-only-signing-key-at-least-32-characters",
                     ["Jwt:ExpirationMinutes"] = "10",
-                    ["DemoUsers:Password"] = Password
+                    ["DemoUsers:Password"] = Password,
+                    ["DemoUsers:EnableAutomaticSeed"] = "true"
                 }));
         }
     }

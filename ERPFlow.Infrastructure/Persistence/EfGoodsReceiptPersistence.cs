@@ -79,12 +79,12 @@ public sealed partial class EfGoodsReceiptPersistence(ERPFlowDbContext context) 
     }
     public Task LockStocksAsync(GoodsReceipt receipt, CancellationToken ct) =>
         InventoryStockLocks.AcquireAsync(context, receipt.Items.Select(x => (receipt.WarehouseId, x.ProductId)), ct);
-    public Task AdmitReceivingAsync(GoodsReceipt receipt, byte[] orderVersion, Guid actor, CancellationToken ct) => ExecuteAsync($"""
-        EXEC dbo.AdmitGoodsReceipt @ReceiptId={receipt.Id}, @OrderVersion={orderVersion}, @ActorId={actor};
+    public Task AdmitReceivingAsync(GoodsReceipt receipt, byte[] orderVersion, Guid actor, DateTime at, CancellationToken ct) => ExecuteAsync($"""
+        EXEC dbo.AdmitGoodsReceipt @ReceiptId={receipt.Id}, @OrderVersion={orderVersion}, @ActorId={actor}, @At={at};
         """, ct);
-    public async Task FinalizePostingAsync(GoodsReceipt receipt, byte[] receiptVersion, Guid actor, CancellationToken ct)
+    public async Task FinalizePostingAsync(GoodsReceipt receipt, byte[] receiptVersion, Guid actor, DateTime at, CancellationToken ct)
     {
-        await ExecuteAsync($"EXEC dbo.PostGoodsReceipt @ReceiptId={receipt.Id}, @ReceiptVersion={receiptVersion}, @ActorId={actor};", ct);
+        await ExecuteAsync($"EXEC dbo.PostGoodsReceipt @ReceiptId={receipt.Id}, @ReceiptVersion={receiptVersion}, @ActorId={actor}, @At={at};", ct);
         await context.Entry(receipt).ReloadAsync(ct);
     }
     private async Task ExecuteAsync(FormattableString sql, CancellationToken ct) => await ConflictAsync(async () =>

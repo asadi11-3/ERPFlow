@@ -1,5 +1,6 @@
 using System.Data.Common;
 using ERPFlow.Api;
+using ERPFlow.Application.ProductImages;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -29,6 +30,26 @@ public sealed class ApiExceptionHandlerTests
         Assert.Equal(!aborted, problems.Context is not null);
         if (!aborted)
             Assert.Equal("An unexpected error occurred.", problems.Context!.ProblemDetails.Detail);
+    }
+
+    [Theory]
+    [InlineData(ProductImageError.NotFound, "product_image_missing", "Product image not found")]
+    [InlineData(ProductImageError.ProductNotFound, "product_not_found", "Product not found")]
+    public async Task ProductImageAbsenceHasStableProblemCode(
+        ProductImageError error,
+        string code,
+        string title)
+    {
+        var context = new DefaultHttpContext();
+        var problems = new RecordingProblemDetailsService();
+        var handler = new ApiExceptionHandler(problems, NullLogger<ApiExceptionHandler>.Instance);
+
+        Assert.True(await handler.TryHandleAsync(context,
+            new ProductImageException(error, "Distinct absence detail."), CancellationToken.None));
+
+        Assert.Equal(StatusCodes.Status404NotFound, context.Response.StatusCode);
+        Assert.Equal(title, problems.Context!.ProblemDetails.Title);
+        Assert.Equal(code, problems.Context.ProblemDetails.Extensions["code"]);
     }
 
     private sealed class CommandFailure : DbException;

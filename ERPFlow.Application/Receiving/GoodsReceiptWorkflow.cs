@@ -42,7 +42,7 @@ public sealed class GoodsReceiptWorkflow(IGoodsReceiptPersistence persistence, I
         await persistence.EnterPostingScopeAsync(receipt.Id, ct);
         persistence.AddReceipt(receipt);
         await persistence.SaveAsync(ct);
-        await persistence.AdmitReceivingAsync(receipt, command.PurchaseOrderRowVersion, actor, ct);
+        await persistence.AdmitReceivingAsync(receipt, command.PurchaseOrderRowVersion, actor, receipt.CreatedAt, ct);
         var result = await CompleteCommandAsync(actor, command.IdempotencyKey, 0, hash, receipt.Id, ct);
         await transaction.CommitAsync(ct);
         return result;
@@ -72,7 +72,7 @@ public sealed class GoodsReceiptWorkflow(IGoodsReceiptPersistence persistence, I
         foreach (var item in receipt.Items.OrderBy(x => x.ProductId))
             await posting.PostReceiptAsync(new(item.Id, $"grn:{receipt.Id:N}:{item.Id:N}"), ct);
         receipt.Post(actor);
-        await persistence.FinalizePostingAsync(receipt, command.RowVersion, actor, ct);
+        await persistence.FinalizePostingAsync(receipt, command.RowVersion, actor, receipt.PostedAt!.Value, ct);
         var result = await CompleteCommandAsync(actor, command.IdempotencyKey, 1, hash, receipt.Id, ct);
         await transaction.CommitAsync(ct);
         return result;

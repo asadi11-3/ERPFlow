@@ -18,7 +18,7 @@ public sealed class InventoryReservation
         Quantity = quantity;
         SalesOrderId = salesOrderId;
         JobcardItemId = jobcardItemId;
-        CreatedAt = DateTime.UtcNow;
+        CreatedAt = BusinessClock.UtcNow;
     }
 
     public Guid Id { get; private set; }
@@ -49,7 +49,7 @@ public sealed class InventoryReservation
             },
             IsLegacyImport = true,
             SourceCreatedAt = source.SourceCreatedAt,
-            CreatedAt = source.SourceCreatedAt ?? DateTime.UtcNow,
+            CreatedAt = source.SourceCreatedAt ?? BusinessClock.UtcNow,
             ClosedAt = source.SourceClosedAt
         };
         return reservation;
@@ -65,7 +65,7 @@ public sealed class InventoryReservation
             InventoryPostingKind.Consume => InventoryReservationStatus.Consumed,
             _ => throw new InvalidOperationException("Reservations can only be released or consumed.")
         };
-        ClosedAt = DateTime.UtcNow;
+        ClosedAt = BusinessClock.UtcNow;
     }
 }
 

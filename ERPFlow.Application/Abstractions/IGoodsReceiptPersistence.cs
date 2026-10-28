@@ -17,10 +17,10 @@ public interface IGoodsReceiptPersistence
     Task EnsureSourcesAsync(PurchaseOrder order, CancellationToken ct);
     void AddReceipt(GoodsReceipt receipt);
     Task SaveAsync(CancellationToken ct);
-    Task AdmitReceivingAsync(GoodsReceipt receipt, byte[] orderVersion, Guid actor, CancellationToken ct);
+    Task AdmitReceivingAsync(GoodsReceipt receipt, byte[] orderVersion, Guid actor, DateTime at, CancellationToken ct);
     Task EnterPostingScopeAsync(Guid receiptId, CancellationToken ct);
     Task LockStocksAsync(GoodsReceipt receipt, CancellationToken ct);
-    Task FinalizePostingAsync(GoodsReceipt receipt, byte[] receiptVersion, Guid actor, CancellationToken ct);
+    Task FinalizePostingAsync(GoodsReceipt receipt, byte[] receiptVersion, Guid actor, DateTime at, CancellationToken ct);
     void AddCommand(GoodsReceiptCommand command);
     Task<GoodsReceiptResult> ResultAsync(Guid id, CancellationToken ct);
     Task<PageResult<GoodsReceiptResult>> ListAsync(int page, int size, Guid? orderId, GoodsReceiptStatus? status, CancellationToken ct);

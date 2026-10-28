@@ -541,6 +541,7 @@ public sealed partial class ApiIntegrationTests : IAsyncLifetime
                     ["Jwt:SigningKey"] = "integration-test-only-signing-key-at-least-32-characters",
                     ["Jwt:ExpirationMinutes"] = "10",
                     ["DemoUsers:Password"] = Password,
+                    ["DemoUsers:EnableAutomaticSeed"] = "true",
                     ["Cors:AllowedOrigins:0"] = "http://localhost:4200",
                     ["Cors:AllowedOrigins:1"] = "http://localhost:5173"
                 }));

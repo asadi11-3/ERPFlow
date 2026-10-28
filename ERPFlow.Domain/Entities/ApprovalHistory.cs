@@ -26,7 +26,7 @@ public sealed class ApprovalHistory
         UserId = userId;
         Action = action;
         Comments = string.IsNullOrWhiteSpace(comments) ? null : comments.Trim();
-        CreatedAt = DateTime.UtcNow;
+        CreatedAt = BusinessClock.UtcNow;
     }
 
     public Guid Id { get; private set; }

@@ -26,7 +26,7 @@ public sealed class SalesOrder
         CustomerId = customerId;
         CreatedByUserId = createdByUserId;
         Status = OrderStatus.Draft;
-        CreatedAt = DateTime.UtcNow;
+        CreatedAt = BusinessClock.UtcNow;
         _readOnlyItems = _items.AsReadOnly();
         _readOnlyReservations = _reservations.AsReadOnly();
     }
@@ -149,7 +149,7 @@ public sealed class SalesOrder
         }
 
         Status = OrderStatus.PendingApproval;
-        SubmittedAt = DateTime.UtcNow;
+        SubmittedAt = BusinessClock.UtcNow;
     }
 
     public ApprovalHistory Approve(Guid approverId, string? comments = null)

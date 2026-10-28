@@ -38,6 +38,7 @@ public sealed class ApiExceptionHandler(
                 ProductImageError.UnsupportedMediaType => (415, "Unsupported image format"),
                 ProductImageError.PreconditionRequired => (428, "Image precondition required"),
                 ProductImageError.PreconditionFailed => (412, "Image precondition failed"),
+                ProductImageError.ProductNotFound => (404, "Product not found"),
                 ProductImageError.NotFound => (404, "Product image not found"),
                 _ => (400, "Invalid product image")
             },
@@ -57,20 +58,26 @@ public sealed class ApiExceptionHandler(
             logger.LogError(exception, "An unhandled API exception occurred.");
         }
 
+        var problemDetails = new ProblemDetails
+        {
+            Status = status,
+            Title = title,
+            Detail = status == StatusCodes.Status413PayloadTooLarge
+                ? "The request exceeds the allowed size."
+                : status >= StatusCodes.Status500InternalServerError
+                ? "An unexpected error occurred."
+                : exception.Message
+        };
+        if (exception is ProductImageException { Error: ProductImageError.ProductNotFound })
+            problemDetails.Extensions["code"] = "product_not_found";
+        else if (exception is ProductImageException { Error: ProductImageError.NotFound })
+            problemDetails.Extensions["code"] = "product_image_missing";
+
         httpContext.Response.StatusCode = status;
         return await problemDetailsService.TryWriteAsync(new ProblemDetailsContext
         {
             HttpContext = httpContext,
-            ProblemDetails = new ProblemDetails
-            {
-                Status = status,
-                Title = title,
-                Detail = status == StatusCodes.Status413PayloadTooLarge
-                    ? "The request exceeds the allowed size."
-                    : status >= StatusCodes.Status500InternalServerError
-                    ? "An unexpected error occurred."
-                    : exception.Message
-            },
+            ProblemDetails = problemDetails,
             Exception = exception
         });
     }

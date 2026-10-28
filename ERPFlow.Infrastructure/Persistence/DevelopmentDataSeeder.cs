@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using ERPFlow.Application.Abstractions;
 using ERPFlow.Application.Transfers;
+using ERPFlow.Domain;
 using ERPFlow.Domain.Entities;
 using ERPFlow.Domain.Enums;
 using ERPFlow.Domain.Inventory;
@@ -210,7 +211,7 @@ public sealed class DevelopmentDataSeeder(
                                 item.ProductId,
                                 order.CustomerId,
                                 order.Id,
-                                DateTime.UtcNow.AddMonths(12),
+                                BusinessClock.UtcNow.AddMonths(12),
                                 1250 * assetIndex));
                             assetIndex++;
                         }

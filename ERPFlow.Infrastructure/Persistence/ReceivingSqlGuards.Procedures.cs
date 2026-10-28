@@ -4,6 +4,8 @@ namespace ERPFlow.Infrastructure.Persistence;
 
 internal static partial class ReceivingSqlGuards
 {
+    internal static void InstallProcedures(MigrationBuilder migration) => Procedures(migration);
+
     private static void Procedures(MigrationBuilder migration)
     {
         migration.Sql("""

@@ -79,12 +79,13 @@ public sealed class EfProductImageWorkflow(ERPFlowDbContext context, IProductIma
         return new ProductImageWriteResult(Metadata(image), created);
     }
 
-    public async Task<ProductImageDownload> GetAsync(Guid productId, CancellationToken cancellationToken = default)
+    public async Task<ProductImageDownload?> GetAsync(Guid productId, CancellationToken cancellationToken = default)
     {
         await RequireProductAsync(productId, cancellationToken);
         await using var lease = await storage.AcquireLeaseAsync(productId, cancellationToken);
-        var image = await context.ProductImages.AsNoTracking().SingleOrDefaultAsync(x => x.ProductId == productId, cancellationToken)
-            ?? throw Missing();
+        var image = await context.ProductImages.AsNoTracking()
+            .SingleOrDefaultAsync(x => x.ProductId == productId, cancellationToken);
+        if (image is null) return null;
         await VerifyStoreAsync(cancellationToken);
         if (!await context.ProductImageObjects.AsNoTracking().AnyAsync(item => item.StorageKey == image.StorageKey &&
             item.ProductId == productId && item.State == ProductImageObjectState.Active, cancellationToken))
@@ -205,7 +206,7 @@ public sealed class EfProductImageWorkflow(ERPFlowDbContext context, IProductIma
     {
         if (!await context.Products.AsNoTracking().AnyAsync(x => x.Id == productId, cancellationToken))
         {
-            throw Missing();
+            throw ProductMissing();
         }
     }
 
@@ -234,5 +235,6 @@ public sealed class EfProductImageWorkflow(ERPFlowDbContext context, IProductIma
     private static ProductImageMetadata Metadata(ProductImage image) => new(image.Id, image.ProductId,
         image.ContentType, image.FileSize, image.Width, image.Height, image.CreatedAt, image.UpdatedAt,
         ProductImageVersions.Encode(image.RowVersion));
-    private static ProductImageException Missing() => new(ProductImageError.NotFound, "The product or its image was not found.");
+    private static ProductImageException Missing() => new(ProductImageError.NotFound, "The product image was not found.");
+    private static ProductImageException ProductMissing() => new(ProductImageError.ProductNotFound, "The product was not found.");
 }

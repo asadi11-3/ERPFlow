@@ -37,7 +37,7 @@ public sealed class MachineAsset
         ProductId = productId;
         CustomerId = customerId;
         SalesOrderId = salesOrderId;
-        InstalledAt = DateTime.UtcNow;
+        InstalledAt = BusinessClock.UtcNow;
         WarrantyExpiresAt = warrantyExpiresAt;
         Status = "Active";
         MeterReading = Math.Max(0, meterReading);

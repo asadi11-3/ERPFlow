@@ -16,7 +16,7 @@ public sealed class AppUser
         Email = RequireText(email, nameof(email)).ToLowerInvariant();
         Role = role;
         PasswordHash = RequireText(passwordHash, nameof(passwordHash));
-        CreatedAt = DateTime.UtcNow;
+        CreatedAt = BusinessClock.UtcNow;
     }
 
     public Guid Id { get; private set; }

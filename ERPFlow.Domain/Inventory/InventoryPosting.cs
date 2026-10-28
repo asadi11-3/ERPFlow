@@ -20,7 +20,7 @@ public sealed class InventoryPosting
         ReservationId = reservationId;
         GoodsReceiptItemId = goodsReceiptItemId;
         StockTransferItemId = stockTransferItemId;
-        CreatedAt = DateTime.UtcNow;
+        CreatedAt = BusinessClock.UtcNow;
     }
 
     public Guid Id { get; private set; }
