@@ -529,6 +529,7 @@ public sealed partial class ApiIntegrationTests : IAsyncLifetime
 
     private sealed class ApiFactory(string connectionString, string environment = "Development") : WebApplicationFactory<Program>
     {
+        private readonly string storageRoot = Path.Combine(Path.GetTempPath(), "ERPFlow-ApiProduction-" + Guid.NewGuid().ToString("N"));
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment(environment);
@@ -541,10 +542,17 @@ public sealed partial class ApiIntegrationTests : IAsyncLifetime
                     ["Jwt:SigningKey"] = "integration-test-only-signing-key-at-least-32-characters",
                     ["Jwt:ExpirationMinutes"] = "10",
                     ["DemoUsers:Password"] = Password,
-                    ["DemoUsers:EnableAutomaticSeed"] = "true",
+                    ["DemoUsers:EnableAutomaticSeed"] = environment == "Development" ? "true" : "false",
+                    ["AllowedHosts"] = "localhost",
+                    ["ProductImages:RootPath"] = storageRoot,
                     ["Cors:AllowedOrigins:0"] = "http://localhost:4200",
                     ["Cors:AllowedOrigins:1"] = "http://localhost:5173"
                 }));
+        }
+        public override async ValueTask DisposeAsync()
+        {
+            await base.DisposeAsync();
+            if (Directory.Exists(storageRoot)) Directory.Delete(storageRoot, true);
         }
     }
 

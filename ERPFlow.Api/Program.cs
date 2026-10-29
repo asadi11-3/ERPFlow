@@ -14,6 +14,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using ERPFlow.Infrastructure.Deployment;
+using Microsoft.AspNetCore.Http.Features;
 
 var activateInventory = args.Contains("--activate-warehouse-inventory", StringComparer.Ordinal);
 var resetDevelopmentDatabase = args.Contains("--reset-development-database", StringComparer.Ordinal);
@@ -29,6 +31,7 @@ if (demoDatabaseName is not null)
 if (demoPassword is not null)
     builderArgs = builderArgs.Where(arg => arg != "--demo-password" && arg != demoPassword).ToArray();
 var builder = WebApplication.CreateBuilder(builderArgs);
+ProductionHosting.AddServices(builder);
 
 if (seedProfessionalDemo && !builder.Environment.IsDevelopment())
     throw new InvalidOperationException("Professional demo seeding requires the Development environment.");
@@ -170,9 +173,12 @@ builder.Services.AddHostedService<ProductImageCleanupWorker>();
 
 if (builder.Environment.IsDevelopment())
 {
+    builder.Services.AddScoped<DevelopmentDataSeeder>();
+    builder.Services.AddScoped<ProfessionalDemoSeeder>();
     builder.Services.AddScoped<DevelopmentInventory>();
     builder.Services.AddScoped<IInventoryWriteGate>(sp => sp.GetRequiredService<DevelopmentInventory>());
 }
+else builder.Services.AddProductionInventory();
 
 if (activateInventory && !builder.Environment.IsDevelopment())
     throw new InvalidOperationException("Warehouse activation command requires Development environment.");
@@ -181,14 +187,41 @@ if (resetDevelopmentDatabase && (!activateInventory || !builder.Environment.IsDe
 
 var app = builder.Build();
 
+if (!app.Environment.IsDevelopment())
+{
+    ProductionHosting.Validate(app.Configuration);
+    if (ProductionHosting.Proxies(app.Configuration).Length > 0) app.UseForwardedHeaders();
+    app.UseHsts();
+}
+
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseHttpsRedirection();
 app.UseRouting();
+app.Use(async (http, next) =>
+{
+    if (http.Request.Path.Equals("/api/auth/login", StringComparison.OrdinalIgnoreCase) ||
+        http.Request.Path.Equals("/api/auth/login/", StringComparison.OrdinalIgnoreCase))
+    {
+        var size = http.Features.Get<IHttpMaxRequestBodySizeFeature>();
+        if (size is { IsReadOnly: false }) size.MaxRequestBodySize = 16 * 1024;
+        if (http.Request.ContentLength > 16 * 1024)
+        {
+            await Results.Problem(statusCode: 413, title: "Request payload too large").ExecuteAsync(http);
+            return;
+        }
+        http.Request.Body = new BoundedRequestStream(http.Request.Body, 16 * 1024);
+    }
+    await next(http);
+});
 if (app.Environment.IsDevelopment())
 {
     app.UseCors("DevelopmentFrontend");
 }
+else app.UseCors(ProductionHosting.CorsPolicy);
+if (!app.Environment.IsDevelopment() && !Environment.Is64BitProcess)
+    app.UseMiddleware<ConstrainedRequestMiddleware>();
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseMiddleware<ProductImageRequestMiddleware>();
@@ -217,10 +250,28 @@ await using (var scope = app.Services.CreateAsyncScope())
 
     if (resetDevelopmentDatabase)
         await context.Database.EnsureDeletedAsync();
-    await context.Database.MigrateAsync();
+    if (app.Environment.IsDevelopment()) await context.Database.MigrateAsync();
+    else
+    {
+        var stage = ProductionStartupStage.Schema;
+        try
+        {
+            await scope.ServiceProvider.GetRequiredService<ProductionInventoryAdmission>()
+                .InitializeAsync(context, schemaVerified: () => stage = ProductionStartupStage.InventoryAuthority);
+            stage = ProductionStartupStage.ImagePath;
+            var storage = scope.ServiceProvider.GetRequiredService<IProductImageStorage>();
+            await ProductionReadiness.VerifyImagesAsync(context, storage, CancellationToken.None, current => stage = current);
+        }
+        catch (Exception exception)
+        {
+            var code = ProductionStartupFailure.Code(stage, exception);
+            app.Logger.LogError("Production prerequisites failed. FailureCode={FailureCode}", code);
+            throw new InvalidOperationException($"Production prerequisites failed ({code}). Runtime startup does not apply migrations.");
+        }
+    }
     if (builder.Environment.IsDevelopment() && builder.Configuration.GetValue<bool>("DemoUsers:EnableAutomaticSeed"))
     {
-        var configuredDemoPassword = builder.Configuration["DemoUsers:Password"] ?? DevelopmentDataSeeder.DefaultPassword;
+        var configuredDemoPassword = builder.Configuration["DemoUsers:Password"];
         if (!string.IsNullOrWhiteSpace(configuredDemoPassword))
             await scope.ServiceProvider.GetRequiredService<DevelopmentDataSeeder>()
                 .SeedAsync(app.Environment.EnvironmentName, configuredDemoPassword);
@@ -235,6 +286,10 @@ await using (var scope = app.Services.CreateAsyncScope())
 if (activateInventory) return;
 
 app.MapApiEndpoints();
+app.MapGet("/health/live", () => Results.Ok(new { status = "healthy" })).AllowAnonymous().ExcludeFromDescription();
+app.MapGet("/health/ready", async (ProductionReadiness readiness, CancellationToken ct) =>
+    await readiness.CheckAsync(ct) ? Results.Ok(new { status = "ready" }) :
+        Results.Json(new { status = "not-ready" }, statusCode: 503)).AllowAnonymous().ExcludeFromDescription();
 app.Run();
 
 static string? ReadOption(string[] arguments, string name)

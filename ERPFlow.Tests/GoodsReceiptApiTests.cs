@@ -121,7 +121,7 @@ public sealed class GoodsReceiptApiTests : IAsyncLifetime
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
     }
     [Fact]
-    public async Task DefaultProductionCompositionRejectsPostEvenForAnAuthorizedReceipt()
+    public async Task ProductionCompositionPostsAuthorizedReceiptAfterVerifiedCutover()
     {
         GoodsReceiptResult draft;
         await using (var setup = database.Context()) draft = await GoodsReceiptTestSupport.Workflow(setup, seed.Procurement.Operator).CreateAsync(seed.Draft(1));
@@ -129,9 +129,9 @@ public sealed class GoodsReceiptApiTests : IAsyncLifetime
         await using var closed = new ApiFactory(context.Database.GetConnectionString()!, false);
         using var denied = closed.CreateClient(new WebApplicationFactoryClientOptions { BaseAddress = new Uri("https://localhost") });
         denied.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", await Token(seed.Procurement.Operator));
-        Assert.Equal(HttpStatusCode.Conflict, (await denied.PostAsJsonAsync($"/api/goods-receipts/{draft.Id}/post", new PostGoodsReceiptCommand("production-denied", draft.RowVersion))).StatusCode);
-        Assert.Equal(GoodsReceiptStatus.Draft, (await context.GoodsReceipts.AsNoTracking().SingleAsync()).Status);
-        Assert.Equal(0, (await context.PurchaseOrderItems.AsNoTracking().SingleAsync()).ReceivedQuantity);
+        Assert.Equal(HttpStatusCode.OK, (await denied.PostAsJsonAsync($"/api/goods-receipts/{draft.Id}/post", new PostGoodsReceiptCommand("production-admitted", draft.RowVersion))).StatusCode);
+        Assert.Equal(GoodsReceiptStatus.Posted, (await context.GoodsReceipts.AsNoTracking().SingleAsync()).Status);
+        Assert.Equal(1, (await context.PurchaseOrderItems.AsNoTracking().SingleAsync()).ReceivedQuantity);
     }
     [Fact]
     public async Task AnonymousAndPersistedRoleRevokedUsersCannotReceive()
@@ -162,6 +162,7 @@ public sealed class GoodsReceiptApiTests : IAsyncLifetime
     }
     private sealed class ApiFactory(string connection, bool authorizeFixtureWrites) : WebApplicationFactory<Program>
     {
+        private readonly string storageRoot = Path.Combine(Path.GetTempPath(), "ERPFlow-GrnProduction-" + Guid.NewGuid().ToString("N"));
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment(authorizeFixtureWrites ? "Development" : "Production");
@@ -169,6 +170,7 @@ public sealed class GoodsReceiptApiTests : IAsyncLifetime
             builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:ERPFlowDb"] = connection, ["DemoUsers:Password"] = "",
+                ["AllowedHosts"] = "localhost", ["ProductImages:RootPath"] = storageRoot,
                 ["Logging:LogLevel:Default"] = "Warning", ["Logging:LogLevel:Microsoft"] = "Warning",
                 ["Jwt:Issuer"] = "ERPFlow.GRN.Tests", ["Jwt:Audience"] = "ERPFlow.GRN.Tests",
                 ["Jwt:SigningKey"] = "isolated-grn-only-signing-key-at-least-32-characters", ["Jwt:ExpirationMinutes"] = "10"
@@ -178,6 +180,11 @@ public sealed class GoodsReceiptApiTests : IAsyncLifetime
                 services.RemoveAll<IInventoryWriteGate>();
                 services.AddScoped<IInventoryWriteGate>(sp => new GoodsReceiptTestSupport.OwnedWarehouseGate(sp.GetRequiredService<ERPFlowDbContext>()));
             });
+        }
+        public override async ValueTask DisposeAsync()
+        {
+            await base.DisposeAsync();
+            if (Directory.Exists(storageRoot)) Directory.Delete(storageRoot, true);
         }
     }
 }

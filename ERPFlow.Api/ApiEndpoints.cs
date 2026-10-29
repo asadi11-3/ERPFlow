@@ -36,8 +36,10 @@ public static class ApiEndpoints
 
         api.MapPost("/auth/login", LoginAsync)
             .AllowAnonymous()
+            .RequireRateLimiting(ProductionHosting.LoginPolicy)
             .WithTags("Authentication")
             .Produces<AccessTokenResult>()
+            .Produces<ProblemDetails>(StatusCodes.Status429TooManyRequests)
             .Produces<ProblemDetails>(StatusCodes.Status401Unauthorized);
 
         var references = api.MapGroup("/reference")
@@ -163,6 +165,9 @@ public static class ApiEndpoints
         LoginRequest request,
         IUserDirectory users,
         JwtTokenService tokens,
+        LoginAttemptLimiter attempts,
+        IHostEnvironment environment,
+        HttpContext http,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Email) ||
@@ -176,6 +181,11 @@ public static class ApiEndpoints
             });
         }
 
+        if (!environment.IsDevelopment() && !attempts.TryAcquire(request.Email))
+        {
+            http.Response.Headers.RetryAfter = "60";
+            return Results.Problem(statusCode: 429, title: "Too many login attempts", detail: "Wait before trying again.");
+        }
         var user = await users.FindByEmailAsync(request.Email, cancellationToken);
         if (user is null || !users.VerifyPassword(user, request.Password))
         {

@@ -6,7 +6,17 @@ namespace ERPFlow.Infrastructure.ProductImages;
 
 public sealed class SkiaProductImageNormalizer : IProductImageNormalizer
 {
-    private static readonly SemaphoreSlim DecodeSlots = new(2, 2);
+    public const int SmallHostMaxPixels = 2_000_000;
+    private static readonly SemaphoreSlim DecodeSlots = new(Environment.Is64BitProcess ? 2 : 1, Environment.Is64BitProcess ? 2 : 1);
+    private readonly int maxPixels;
+
+    public SkiaProductImageNormalizer() : this(Environment.Is64BitProcess ? checked((int)ProductImageLimits.MaxPixels) : SmallHostMaxPixels) { }
+
+    public SkiaProductImageNormalizer(int maxPixels)
+    {
+        if (maxPixels is < 1 or > (int)ProductImageLimits.MaxPixels) throw new ArgumentOutOfRangeException(nameof(maxPixels));
+        this.maxPixels = maxPixels;
+    }
 
     public async Task<NormalizedProductImage> NormalizeAsync(Stream source, string fileName, string contentType,
         CancellationToken cancellationToken = default)
@@ -46,6 +56,8 @@ public sealed class SkiaProductImageNormalizer : IProductImageNormalizer
                 info.Width > ProductImageLimits.MaxEdge || info.Height > ProductImageLimits.MaxEdge ||
                 (long)info.Width * info.Height > ProductImageLimits.MaxPixels)
                 throw Invalid();
+            if ((long)info.Width * info.Height > maxPixels)
+                throw Error(ProductImageError.TooLarge, "Image pixel dimensions exceed this host's processing limit. Resize the image before uploading.");
             var pixelInfo = new SKImageInfo(info.Width, info.Height, SKColorType.Rgba8888, SKAlphaType.Premul);
             using var pixels = new SKBitmap(pixelInfo);
             if (codec.GetPixels(pixelInfo, pixels.GetPixels()) != SKCodecResult.Success) throw Invalid();

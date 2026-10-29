@@ -57,6 +57,14 @@
               ],
               "outputHashing": "all"
             },
+            "monsterasp": {
+              "fileReplacements": [
+                {
+                  "replace": "src/app/core/config.ts",
+                  "with": "src/app/core/config.monsterasp.ts"
+                }
+              ]
+            },
             "development": {
               "optimization": false,
               "extractLicenses": false,

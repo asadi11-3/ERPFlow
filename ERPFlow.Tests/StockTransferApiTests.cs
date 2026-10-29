@@ -193,7 +193,7 @@ public sealed class StockTransferApiTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task ProductionGateAllowsDraftButRejectsPostWithoutDataEffects()
+    public async Task ProductionGateAllowsPostingOnlyAfterVerifiedCutover()
     {
         await using var context = database.Context();
         await using var production = FactoryFor(database, false);
@@ -202,11 +202,13 @@ public sealed class StockTransferApiTests : IAsyncLifetime
         var draft = await ReadCreated(await Send(denied, "/api/stock-transfers", seed.Draft(), "production-draft"));
         var before = await context.WarehouseStocks.AsNoTracking().Where(x => x.ProductId == seed.Product)
             .OrderBy(x => x.WarehouseId).Select(x => new { x.WarehouseId, x.StockOnHand, x.ReservedQuantity }).ToArrayAsync();
-        Assert.Equal(HttpStatusCode.Conflict, (await Send(denied, $"/api/stock-transfers/{draft.Id}/post", new PostStockTransferCommand(draft.RowVersion), "production-post")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await Send(denied, $"/api/stock-transfers/{draft.Id}/post", new PostStockTransferCommand(draft.RowVersion), "production-post")).StatusCode);
         var after = await context.WarehouseStocks.AsNoTracking().Where(x => x.ProductId == seed.Product)
             .OrderBy(x => x.WarehouseId).Select(x => new { x.WarehouseId, x.StockOnHand, x.ReservedQuantity }).ToArrayAsync();
-        Assert.Equal(JsonSerializer.Serialize(before), JsonSerializer.Serialize(after));
-        Assert.Equal(StockTransferStatus.Draft, (await context.StockTransfers.AsNoTracking().SingleAsync(x => x.Id == draft.Id)).Status);
+        Assert.Equal(before.Sum(x => x.StockOnHand), after.Sum(x => x.StockOnHand));
+        Assert.Equal(before.Single(x => x.WarehouseId == seed.Source).StockOnHand - 5, after.Single(x => x.WarehouseId == seed.Source).StockOnHand);
+        Assert.Equal(before.Single(x => x.WarehouseId == seed.Destination).StockOnHand + 5, after.Single(x => x.WarehouseId == seed.Destination).StockOnHand);
+        Assert.Equal(StockTransferStatus.Posted, (await context.StockTransfers.AsNoTracking().SingleAsync(x => x.Id == draft.Id)).Status);
     }
 
     [Fact]
@@ -260,6 +262,7 @@ public sealed class StockTransferApiTests : IAsyncLifetime
 
     private sealed class ApiFactory(string connection, bool fixtureOwnedGate) : WebApplicationFactory<Program>
     {
+        private readonly string storageRoot = Path.Combine(Path.GetTempPath(), "ERPFlow-TransferProduction-" + Guid.NewGuid().ToString("N"));
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseEnvironment(fixtureOwnedGate ? "Development" : "Production");
@@ -267,6 +270,7 @@ public sealed class StockTransferApiTests : IAsyncLifetime
             builder.ConfigureAppConfiguration((_, config) => config.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:ERPFlowDb"] = connection, ["DemoUsers:Password"] = "",
+                ["AllowedHosts"] = "localhost", ["ProductImages:RootPath"] = storageRoot,
                 ["Logging:LogLevel:Default"] = "Warning", ["Logging:LogLevel:Microsoft"] = "Warning",
                 ["Jwt:Issuer"] = "ERPFlow.StockTransfer.Tests", ["Jwt:Audience"] = "ERPFlow.StockTransfer.Tests",
                 ["Jwt:SigningKey"] = "isolated-stock-transfer-signing-key-at-least-32-characters", ["Jwt:ExpirationMinutes"] = "10"
@@ -276,6 +280,11 @@ public sealed class StockTransferApiTests : IAsyncLifetime
                 services.RemoveAll<IInventoryWriteGate>();
                 services.AddScoped<IInventoryWriteGate>(sp => new GoodsReceiptTestSupport.OwnedWarehouseGate(sp.GetRequiredService<ERPFlowDbContext>()));
             });
+        }
+        public override async ValueTask DisposeAsync()
+        {
+            await base.DisposeAsync();
+            if (Directory.Exists(storageRoot)) Directory.Delete(storageRoot, true);
         }
     }
 }

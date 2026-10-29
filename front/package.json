@@ -5,11 +5,13 @@
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
+    "build:monsterasp": "ng build --configuration production,monsterasp",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "test:hosting": "node --test worker.test.ts",
     "lint": "ng lint",
     "deploy": "npm run build && wrangler deploy",
+    "deploy:monsterasp": "npm run build:monsterasp && wrangler deploy",
     "preview": "npm run build && wrangler dev"
   },
   "private": true,

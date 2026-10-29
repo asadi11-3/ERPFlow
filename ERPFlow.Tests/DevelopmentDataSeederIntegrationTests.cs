@@ -241,11 +241,13 @@ public sealed class DevelopmentDataSeederIntegrationTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task SeederSeedsInProductionWhenAllowProductionIsTrue()
+    public async Task SeederHasNoProductionOverrideOrDefaultCredential()
     {
-        await Seeder().SeedAsync("Production", Password, allowProduction: true);
-        Assert.Equal(8, await context.AppUsers.CountAsync());
-        Assert.Equal(10, await context.Customers.CountAsync());
+        await Seeder().SeedAsync("Production", Password);
+        Assert.Empty(await context.AppUsers.ToArrayAsync());
+        Assert.Empty(await context.Customers.ToArrayAsync());
+        Assert.Null(typeof(DevelopmentDataSeeder).GetField("DefaultPassword"));
+        Assert.DoesNotContain(typeof(DevelopmentDataSeeder).GetMethod("SeedAsync")!.GetParameters(), p => p.Name == "allowProduction");
     }
 
     private async Task AssertReservationConsistencyAsync()

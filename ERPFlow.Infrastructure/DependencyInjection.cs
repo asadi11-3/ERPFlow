@@ -13,11 +13,19 @@ using ERPFlow.Infrastructure.Persistence;
 using ERPFlow.Infrastructure.Persistence.Inventory;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using ERPFlow.Infrastructure.Deployment;
 
 namespace ERPFlow.Infrastructure;
 
 public static class DependencyInjection
 {
+    public static IServiceCollection AddProductionInventory(this IServiceCollection services)
+    {
+        services.AddSingleton<ProductionInventoryAdmission>();
+        services.AddScoped<IInventoryWriteGate, ProductionWarehouseWriteGate>();
+        return services;
+    }
+
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
         Func<IServiceProvider, string> connectionStringFactory)
@@ -33,8 +41,6 @@ public static class DependencyInjection
         services.AddScoped<IEquipmentWorkflow, EquipmentWorkflow>();
         services.AddScoped<IServicePersistence, EfServicePersistence>();
         services.AddScoped<IServiceWorkflow, ServiceWorkflow>();
-        services.AddScoped<DevelopmentDataSeeder>();
-        services.AddScoped<ProfessionalDemoSeeder>();
         services.AddSingleton<IInventoryWriteGate, ProductAuthorityWriteGate>();
         services.AddScoped<IInventoryPosting, EfInventoryPosting>();
         services.AddScoped<IWarehouseSourcePolicy, ProductAuthorityWarehouseSourcePolicy>();

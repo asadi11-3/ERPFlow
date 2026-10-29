@@ -33,6 +33,27 @@ public sealed class LocalProductImageStorage : IProductImageStorage
 
     public string StoreIdentity => identity.Value;
 
+    public async Task ProbeAsync(CancellationToken cancellationToken = default)
+    {
+        _ = StoreIdentity;
+        var path = Path.Combine(root, ".probe-" + Guid.NewGuid().ToString("N"));
+        CheckPath(path);
+        var options = new FileStreamOptions
+        {
+            Mode = FileMode.CreateNew, Access = FileAccess.ReadWrite, Share = FileShare.None,
+            Options = FileOptions.Asynchronous | FileOptions.DeleteOnClose
+        };
+        if (!OperatingSystem.IsWindows()) options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        await using var probe = new FileStream(path, options);
+        await probe.WriteAsync(new byte[] { 0x45, 0x52, 0x50 }, cancellationToken);
+        await probe.FlushAsync(cancellationToken);
+        probe.Flush(true);
+        probe.Position = 0;
+        var bytes = new byte[3];
+        await probe.ReadExactlyAsync(bytes, cancellationToken);
+        if (!bytes.AsSpan().SequenceEqual(new byte[] { 0x45, 0x52, 0x50 })) throw new IOException("Image storage probe failed.");
+    }
+
     public async ValueTask<IAsyncDisposable> AcquireLeaseAsync(Guid productId, CancellationToken cancellationToken = default)
     {
         _ = StoreIdentity;
