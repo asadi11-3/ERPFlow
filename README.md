@@ -1,6 +1,6 @@
 # ERPFlow
 
-ERPFlow is a portfolio ERP workflow application built with a .NET 10 Minimal API, Entity Framework Core, SQL Server, and an Angular 22 client. Its implemented scope connects sales approval, warehouse reservation and dispatch, customer equipment, and service jobcards.
+ERPFlow is a portfolio ERP workflow application built with a .NET 10 Minimal API, Entity Framework Core, SQL Server, and an Angular 22 client. Its implemented scope connects sales approvals, warehouse inventory, procurement and receiving, equipment dispatch, service jobcards, and role-scoped analytics.
 
 ## Implemented Scope
 
@@ -26,7 +26,7 @@ Draft -> PendingApproval -> Approved
 - Rejection or return closes the reservation and frees only the reserved quantity.
 - Dispatch is the shipment event. It reduces `StockOnHand` and `ReservedQuantity` by the same quantity, then marks the reservation released.
 - `IsReleased` means the reservation is closed. It doesn't mean stock was necessarily returned: rejection and return free reserved stock, while dispatch consumes physical stock.
-- Product row versions, database transactions, and uniqueness constraints protect concurrent stock changes and duplicate records.
+- Row versions, database transactions, and uniqueness constraints protect concurrent stock changes and duplicate records.
 
 ### Equipment Dispatch And Delivery Notes
 
@@ -49,6 +49,17 @@ Draft -> PendingApproval -> Approved
 - `Completed` and `Cancelled` are terminal for parts requests and completion. Repeated completion returns `409 Conflict`.
 - There is no unused-part, partial-consumption, cancellation, or explicit part-release endpoint or workflow.
 
+### Procurement And Warehouse Operations
+
+- Administrators manage warehouses; Purchasing users manage suppliers and their own purchase orders. Approvers decide purchase orders submitted by other users. Warehouse operators see cost-free operational purchase-order views.
+- Warehouse operators and Administrators create and post goods receipts against purchase orders, including partial receipts, and transfer available stock between warehouses. Receiving and transfer posting require completed Warehouse inventory authority; neither falls back to Product balances.
+- Authorized users can query bounded stock and movement history. Purchase orders do not change stock or catalog selling prices; posted receipts add stock and transfers move it between warehouses.
+
+### Product Catalog And Analytics
+
+- Administrators can create, edit, activate, and deactivate catalog products and manage their images. Authenticated users can read product details and images.
+- Eight analytics endpoints cover sales, approvals, procurement, receiving, transfers, inventory, dispatch, and service. Reports are role-scoped and support time ranges and day/week/month grouping; inventory analytics require Warehouse authority.
+
 ## Authentication And Authorization
 
 Login returns a signed JWT containing the persisted user ID and role. Passwords are hashed, signing keys and demo passwords aren't committed, and mutation workflows verify the current persisted user and role in addition to endpoint policy checks.
@@ -62,7 +73,7 @@ Login returns a signed JWT containing the persisted user ID and role. Passwords 
 | Dispatch approved orders | No | No | Yes | Yes |
 | Create jobcards, request parts, and complete jobcards | No | No | Yes | Yes |
 
-All listed reads require authentication. This sample doesn't provide refresh tokens, token revocation, account administration, or SQL Server row-level security.
+Purchasing users manage suppliers and their own purchase orders. WarehouseOperator users post goods receipts and stock transfers and see cost-free operational data. Approvers can decide purchase orders; Administrators manage warehouses and products. Inventory queries are limited to Administrator, WarehouseOperator, Purchasing, and Approver roles. All listed reads require authentication. This sample doesn't provide refresh tokens, token revocation, account administration, or SQL Server row-level security.
 
 ## API Surface
 
@@ -70,6 +81,7 @@ All listed reads require authentication. This sample doesn't provide refresh tok
 | --- | --- |
 | Authentication | `POST /api/auth/login` |
 | Reference data | `GET /api/reference/customers`, `GET /api/reference/products` |
+| Product catalog and images | product detail and Administrator create/edit/activation under `/api/products`; authenticated image read and Administrator upload/delete under `/api/products/{id}/image` |
 | Sales orders | list, detail, create, submit, pending queue, history, approve, reject, return under `/api/sales-orders` |
 | Equipment | dispatch under `/api/equipment/sales-orders/{id}/dispatch`; list delivery notes; list and view machine assets |
 | Service | list, view, and create jobcards; request parts; complete jobcards under `/api/service/jobcards` |
@@ -79,6 +91,7 @@ All listed reads require authentication. This sample doesn't provide refresh tok
 | Goods receipts | Draft create, list/detail, post and Draft cancellation under `/api/goods-receipts`; durable create/post replay and partial/full PO receiving |
 | Stock transfers | create/list/detail, atomic post and Draft cancellation under `/api/stock-transfers`; `Idempotency-Key` headers for create/post |
 | Operational inventory | filtered, bounded `/api/inventory/stocks` and `/api/inventory/movements`; source document references without purchasing costs |
+| Analytics | eight role-scoped reports under `/api/analytics`: sales, approvals, procurement, receiving, transfers, inventory, dispatch, service |
 
 Errors use RFC 7807 Problem Details where a body is available. Invalid input returns `400`, authentication failures return `401`, authorization failures return `403`, missing records return `404`, and invalid or duplicate workflow transitions and concurrency conflicts return `409`.
 
@@ -92,9 +105,11 @@ The Angular client in [`front/`](front) uses standalone components, lazy routes,
 - `/approvals` and `/approvals/:id`
 - `/assets` and `/assets/:id`, including delivery-note and asset views
 - `/service`, `/service/new`, and `/service/:id`, including parts requests and completion
-- `/reference`
+- `/reference`, including Administrator product and image management
+- `/warehouses`, `/suppliers`, `/purchase-orders`, `/receiving`, `/goods-receipts`, `/stock-transfers`, and `/inventory`, with relevant detail and create/edit routes
+- `/analytics/sales-service`, `/analytics/purchasing`, and `/analytics/warehouse`
 
-Navigation is filtered by role. Backend authorization remains authoritative. The client has no delivery-confirmation, jobcard-start, jobcard-cancel, partial-part, or unused-part return page because those API workflows don't exist.
+Navigation is filtered by role. Backend authorization remains authoritative. The client is an installable PWA; its offline cache covers the application shell and static assets, not API data or offline writes. The client has no delivery-confirmation, jobcard-start, jobcard-cancel, partial-part, or unused-part return page because those API workflows don't exist.
 
 ## Solution Layout
 
@@ -103,6 +118,7 @@ ERPFlow.Api             HTTP endpoints, JWT policies, OpenAPI, Problem Details
 ERPFlow.Application     workflow orchestration and authorization
 ERPFlow.Domain          entities, states, and business invariants
 ERPFlow.Infrastructure  EF Core persistence, migrations, and development seeding
+ERPFlow.Operations      separate production migration, verification, first-admin, and cutover CLI
 ERPFlow.Tests           domain and SQL Server integration tests
 front                   Angular client
 ```
@@ -117,12 +133,15 @@ Prerequisites are the .NET 10 SDK, Node.js for the Angular client, and a reachab
 dotnet restore ERPFlow.slnx
 dotnet user-secrets set --project ERPFlow.Api "Jwt:SigningKey" "<at-least-32-random-characters>"
 dotnet user-secrets set --project ERPFlow.Api "DemoUsers:Password" "<development-only-password>"
+dotnet user-secrets set --project ERPFlow.Api "DemoUsers:EnableAutomaticSeed" "true"
 dotnet run --project ERPFlow.Api --launch-profile https
 ```
 
-Development startup applies pending migrations. When `DemoUsers:Password` is set, an empty development database is seeded transactionally with six users: three Sales, one Approver, one Technician, and one Administrator. It also seeds customers, products, 15 sample orders, 23 sales-order reservation rows, approval history, three delivery notes for approved orders, one machine asset per dispatched ordered unit, and two service jobcards. One jobcard has a properly reserved part and the other is completed; active reservation accounting includes both sales-order reservations and incomplete jobcard items.
+Development startup applies pending migrations. When `DemoUsers:EnableAutomaticSeed` is true and `DemoUsers:Password` is set, an empty development database is seeded transactionally with six users: three Sales, one Approver, one Technician, and one Administrator. It also seeds customers, products, 15 sample orders, 23 sales-order reservation rows, approval history, three delivery notes for approved orders, one machine asset per dispatched ordered unit, and two service jobcards. One jobcard has a properly reserved part and the other is completed; active reservation accounting includes both sales-order reservations and incomplete jobcard items.
 
 Those figures describe a fresh database only. Existing references and business records are preserved rather than overwritten, automatically reconciled, or destructively repaired, so a previously seeded or modified database can have different counts and may retain historical inconsistencies that require manual review.
+
+Warehouse posting requires a completed inventory cutover. For an existing Development database, stop other writers and run `dotnet run --project ERPFlow.Api --launch-profile https -- --activate-warehouse-inventory`, then start the API normally. See [Development warehouse activation](docs/development-inventory.md) for prerequisites and reconciliation behavior. This command is Development-only; Production uses the separate operator CLI.
 
 Start the frontend separately:
 
@@ -136,29 +155,11 @@ The default client expects the API at `https://localhost:7165` and runs at `http
 
 ## Migrations And Existing Data
 
-### KDT Phase 1 foundation (dormant)
+The additive KDT Phase 1–2C migrations introduced WarehouseStock, inventory ownership, source preparation, and a reconciled Product-to-Warehouse authority cutover. Databases start in Product mode until explicitly activated; Warehouse posting never silently falls back to Product balances. See [Phase 1](docs/inventory-foundation-phase1.md), [Phase 2A/2B](docs/inventory-source-preparation-phase2ab.md), and [Phase 2C](docs/inventory-authority-cutover-phase2c.md) for migration history and cutover rules. Old Product balances are not removed, and destructive downgrade is prohibited.
 
-The additive InventoryFoundation migration prepares Warehouse, WarehouseStock, explicit inventory reservation ownership, posting and movement tables. **Product balances remain authoritative.** No existing inventory workflow uses these tables and the registered posting gate refuses warehouse writes; there is no activation configuration flag. No live data backfill or cutover is included. See [the Phase 1 compatibility, transaction and cutover strategy](docs/inventory-foundation-phase1.md) before integrating later modules or deploying a cutover.
+KDT Phase 3 added warehouse, supplier, and purchase-order workflows; Phase 4 added partial goods receiving and replay-safe posting; Phase 5 added conserved stock transfers. Their API operations and Angular pages are available, subject to role checks and completed Warehouse authority for inventory writes.
 
-### KDT Phase 2A/2B source and import preparation
-
-The WarehouseSourcePreparation migration adds nullable warehouse provenance, retains closed Sales reservation cycles and seeds one legacy-default warehouse metadata record. Old requests remain compatible; only the existing default bucket is accepted while Product is authoritative, with no non-default fallback. An Administrator-only internal preparation service stages reconciled opening/ownership manifests without applying inventory. See [the Phase 2A/2B compatibility, migration and preparation strategy](docs/inventory-source-preparation-phase2ab.md), especially deployment ordering and stale-manifest/cutover gates. **WarehouseStock authority is still disabled.**
-
-### KDT Phase 2C inactive atomic cutover
-
-An operator-service implementation and isolated rehearsal now cover atomic conserved openings/owners, reconciliation, durable authority/version fencing and warehouse-backed Sales/Service/Equipment branches. The migration starts in Product mode; application cutover and WarehouseStock permissions remain fail-closed, without activation flags or endpoints. **No live cutover is enabled.** Read [the Phase 2C mechanism, evidence and activation blockers](docs/inventory-authority-cutover-phase2c.md) before any deployment proposal. Old Product balances are not removed, and destructive downgrade is prohibited.
-
-### KDT Phase 3 procurement backend
-
-Warehouse master management, Supplier master management and purchase-order Draft/approval/rejection/cancellation workflows are available through authenticated backend APIs. Purchasing users manage suppliers and their own POs; Approvers decide other users' POs; WarehouseOperators receive a separate cost-free operational projection. Warehouse changes are Administrator-only and deactivation checks commitments under a transaction fence. All edits/transitions require concurrency tokens. Purchase orders never change inventory or Product selling prices. Receiving was added separately in Phase 4 below; transfers and procurement screens remain outside scope.
-
-### KDT Phase 4 isolated goods receiving
-
-GRN backend workflows support Draft/Posted/Cancelled documents, multiple partial receipts, atomic PO receiving progress, exact WarehouseStock Receipt movements and durable create/post idempotency. WarehouseOperator/Administrator authorization, same-PO concurrency, over-receipt rejection and whole-command rollback are covered by real isolated SQL tests. **Production inventory gates remain closed**: receiving succeeds only with explicitly authorized completed-cutover fixture permissions. No Product balance fallback, transfers, posted reversals or Angular screens are included.
-
-### KDT Phase 5 isolated stock transfers
-
-WarehouseOperator/Administrator workflows create immutable Draft transfers, atomically post conserved outgoing/incoming movements and cancel Drafts. Posting protects reserved stock, uses shared globally ordered warehouse/product locks, safely provisions a missing destination and persists durable create/post replay. Purchasing and Approver can read cost-free operational inventory history. **Production write/cutover gates remain disabled.** No Angular screens, stock adjustment or other inventory modules are included.
+Production startup validates schema, inventory authority, and private image storage; it does not apply migrations, seed demo data, or perform cutover. `ERPFlow.Operations` provides explicit `migrate`, `verify`, `first-admin`, `prepare-cutover`, and `complete-cutover` commands for offline administration. A Product-authority database cannot post Warehouse inventory and reports `/health/ready` as `503` until cutover and verification succeed. See [production deployment and operator procedure](docs/monsterasp-deployment.md). Local release artifacts have been verified; hosted API setup and public release still require the prerequisites in that guide.
 
 Migrations add database constraints for workflow invariants, including a unique delivery-note `SalesOrderId`, unique jobcard product rows, row-version concurrency on products, and non-negative stock rules. Jobcards use a concurrency-checked `Revision` that advances on every parts request, work start, and completion, protecting completion from racing parts requests even for different products.
 
@@ -190,6 +191,6 @@ SQL integration tests generate uniquely named test databases, apply migrations, 
 
 ## Limits
 
-ERPFlow is a workflow-focused portfolio application, not a full ERP suite. Purchase-order approval, production-disabled GRN receiving and isolated stock transfers are implemented. Posted receipt/transfer reversals, stock taking/adjustment/reorder, supplier returns, invoicing, accounting, user administration, production deployment automation, delivery confirmation, partial dispatch, and service-part return/cancellation remain outside the implemented scope.
+ERPFlow is a workflow-focused portfolio application, not a full ERP suite. Posted receipt/transfer reversals, stock taking/adjustment/reorder, supplier returns, invoicing, accounting, user administration, delivery confirmation, partial dispatch, and service-part return/cancellation remain outside the implemented scope.
 
-See [`docs/FRONTEND_HANDOFF.md`](docs/FRONTEND_HANDOFF.md) and [`docs/openapi/erpflow-v1.json`](docs/openapi/erpflow-v1.json) for supporting detail. The generated OpenAPI snapshot is checked against the running API in integration tests.
+See [`front/README.md`](front/README.md), [`docs/analytics.md`](docs/analytics.md), and [`docs/openapi/erpflow-v1.json`](docs/openapi/erpflow-v1.json) for supporting detail. The generated OpenAPI snapshot is checked against the running API in integration tests.
