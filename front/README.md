@@ -45,4 +45,4 @@ npm.cmd run build
 npx.cmd --yes madge --circular --extensions ts --ts-config tsconfig.app.json src/app
 ```
 
-Browser checks: manifest and icon dimensions; offline login and deep links after shell installation; blocked offline writes; no `/api` entries in Cache Storage; lost-save feedback; update notice without automatic reload; cancel preserves entries; reload blocked during saves/offline; full-version confirmed reload; session expiry/resume; keyboard and 375px layout. The design decisions and broader release matrix are in [PWA_IMPLEMENTATION_PLAN.md](PWA_IMPLEMENTATION_PLAN.md).
+Browser checks: manifest and icon dimensions; offline login and deep links after shell installation; blocked offline writes; no `/api` entries in Cache Storage; lost-save feedback; update notice without automatic reload; cancel preserves entries; reload blocked during saves/offline; full-version confirmed reload; session expiry/resume; keyboard and 375px layout.
