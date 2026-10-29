@@ -747,6 +747,12 @@ details[open]::details-content { opacity: 1; transform: none; transition-duratio
   }
 }
 
+@container (min-width: 641px) and (max-width: 750px) {
+  .table-wrap.reference-table > .table {
+    @include stacked;
+  }
+}
+
 @container (max-width: 940px) {
   .table-wrap.wide > .table {
     @include stacked;

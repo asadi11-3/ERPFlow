@@ -55,10 +55,9 @@ export class Shell {
   protected readonly signOutOpen = signal(false);
   protected readonly drawerOpen = signal(false);
   private readonly router = inject(Router);
-  private readonly initialPath = this.router.currentNavigation()?.finalUrl?.toString() ?? this.router.url;
-  protected readonly categories = signal<string[]>(NAV
-    .filter(group => group.items.some(item => this.initialPath === item.path || this.initialPath.startsWith(item.path + '/')))
-    .map(group => group.label));
+  private readonly initialPath = (this.router.currentNavigation()?.finalUrl?.toString() ?? this.router.url).split(/[?#]/)[0];
+  protected readonly category = signal(NAV.find(group =>
+    group.items.some(item => this.initialPath === item.path || this.initialPath.startsWith(item.path + '/')))?.label ?? '');
 
   protected readonly nav = computed(() => {
     const role = this.session.user()?.role;
@@ -70,10 +69,8 @@ export class Shell {
 
   protected toggleCategory(label: string, event: Event): void {
     const open = (event.target as HTMLDetailsElement).open;
-    this.categories.update(categories => {
-      if (open) return categories.includes(label) ? categories : [...categories, label];
-      return categories.filter(category => category !== label);
-    });
+    if (open) this.category.set(label);
+    else if (this.category() === label) this.category.set('');
   }
 
   protected readonly initials = computed(() =>

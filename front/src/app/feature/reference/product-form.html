@@ -1,33 +1,41 @@
 <section class="page catalog-form">
-  <header class="page-head"><div><a routerLink="/reference" [queryParams]="{tab: 'products'}">Back to Products</a>
+  <header class="page-head"><div><a class="back" routerLink="/reference" [queryParams]="{tab: 'products'}">Back to products</a>
     <h1>{{ readOnly ? 'Product details' : id ? 'Edit product' : 'Add product' }}</h1>
-    <p>Manage catalog information. Inventory balances are controlled by inventory workflows.</p></div>
+    <p>{{ readOnly ? 'Catalog information and change history.' : id ? 'Update catalog details. Saved transactions keep their original prices.' : 'Add a product to the catalog. Stock starts at zero.' }}</p></div>
     @if (readOnly && isAdmin()) { @if (product(); as current) { <a class="btn btn-primary" [routerLink]="['/reference/products', current.id, 'edit']">Edit product</a> } }
   </header>
   @if (loading()) { <div class="card loading-lines" role="status" aria-label="Loading product"><span class="skeleton"></span><span class="skeleton"></span></div> }
   @else if (loadError()) { <div class="alert" role="alert"><p>{{ loadError() }}</p><button class="btn btn-ghost" (click)="load()">Reload product</button></div> }
   @else {
     @if (notice()) { <p class="alert success-note" role="status">{{ notice() }}</p> }
-    <form class="card stack" (submit)="$event.preventDefault(); save()">
-      @if (product(); as current) { <div class="section-heading"><h2>Catalog information</h2><app-pill [label]="current.isActive ? 'Active' : 'Inactive'" [tone]="current.isActive ? 'green' : 'gray'" /></div> }
-      <fieldset class="form-grid" [disabled]="busy() || !canEdit()">
-        <div class="field"><label for="product-name">Product name</label><input #name id="product-name" required maxlength="200" autocomplete="off" [value]="draft().name" (input)="setName(name.value)" /></div>
-        <div class="field"><label for="product-sku">SKU</label><input #sku id="product-sku" required maxlength="64" autocomplete="off" [readOnly]="!!id" [value]="draft().sku" (input)="setSku(sku.value)" /><small class="muted">SKU cannot be changed after creation.</small></div>
-        <div class="field"><label for="product-price">Unit price</label><input #price id="product-price" type="number" inputmode="decimal" required min="0" max="9999999999999.99" step="0.01" [value]="priceText()" (input)="setPrice(price.value)" /><small class="muted">New sales lines use this price. Saved transactions retain their prices.</small></div>
-      </fieldset>
-      @if (!id) { <p class="muted">New products start active with zero physical stock and zero reserved quantity.</p> }
-      @if (error()) { <p class="alert" role="alert">{{ error() }}</p> }
-      @if (conflict()) { <button type="button" class="btn btn-ghost" (click)="load()">Reload current product</button> }
-      @if (canEdit()) { <div class="actions"><button class="btn btn-primary" [disabled]="busy() || conflict()">{{ busy() ? 'Saving…' : id ? 'Save changes' : 'Create product' }}</button></div> }
-    </form>
-    @if (imageProduct(); as current) {
-      <section class="card stack"><h2>Product image</h2><div class="catalog-image"><app-product-image [product]="current" (imageChanged)="imageChanged($event)" /><p>Select the preview to view{{ isAdmin() ? ', upload, replace, or delete' : '' }} the product image.</p></div></section>
-    }
+    <div class="catalog-workspace">
+      <form class="card stack catalog-editor" (submit)="$event.preventDefault(); save()">
+        <div class="section-heading"><h2>Catalog information</h2>
+          @if (product(); as current) { <app-pill [label]="current.isActive ? 'Active' : 'Inactive'" [tone]="current.isActive ? 'green' : 'gray'" /> }
+        </div>
+        <fieldset class="form-grid catalog-fields" [disabled]="busy() || !canEdit()">
+          <div class="field product-name"><label for="product-name">Product name</label><input #name id="product-name" required maxlength="200" autocomplete="off" [value]="draft().name" (input)="setName(name.value)" /></div>
+          <div class="field"><label for="product-sku">SKU</label><input #sku id="product-sku" required maxlength="64" autocomplete="off" [readOnly]="!!id" [value]="draft().sku" (input)="setSku(sku.value)" /><small class="muted">Fixed after creation.</small></div>
+          <div class="field"><label for="product-price">Unit price</label><input #price id="product-price" type="number" inputmode="decimal" required min="0" max="9999999999999.99" step="0.01" [value]="priceText()" (input)="setPrice(price.value)" /><small class="muted">Used for new transactions only.</small></div>
+        </fieldset>
+        @if (error()) { <p class="alert" role="alert">{{ error() }}</p> }
+        @if (conflict()) { <button type="button" class="btn btn-ghost" (click)="load()">Reload current product</button> }
+        @if (canEdit()) { <div class="actions editor-actions"><button class="btn btn-primary" [disabled]="busy() || conflict()">{{ busy() ? 'Saving…' : id ? 'Save changes' : 'Create product' }}</button></div> }
+      </form>
+      <div class="catalog-secondary">
+        @if (!id) { <aside class="card stack"><h2>After creation</h2><p>New products start active with zero physical stock and zero reserved quantity. You can add an image after saving.</p></aside> }
+        @if (imageProduct(); as current) {
+          <section class="card stack"><h2>Product image</h2><div class="catalog-image"><app-product-image [product]="current" (imageChanged)="imageChanged($event)" /><p>Select the preview to view{{ isAdmin() ? ', upload, replace, or delete' : '' }} the product image.</p></div></section>
+        }
+        @if (product(); as current) {
+          @if (canEdit()) { <section class="card stack"><h2>{{ current.isActive ? 'Deactivate product' : 'Activate product' }}</h2><p>Inactive products cannot be chosen for new sales, purchase orders, or Service parts requests. Existing commitments and historical records remain valid.</p><button type="button" class="btn btn-ghost" [disabled]="busy() || conflict()" (click)="confirming.set(true)">{{ current.isActive ? 'Deactivate' : 'Activate' }}</button></section> }
+        }
+      </div>
+    </div>
     @if (product(); as current) {
-      @if (canEdit()) { <section class="card stack"><h2>{{ current.isActive ? 'Deactivate product' : 'Activate product' }}</h2><p>Inactive products cannot be chosen for new sales, purchase orders, or Service parts requests. Existing commitments and historical records remain valid.</p><button class="btn btn-ghost" [disabled]="busy() || conflict()" (click)="confirming.set(true)">{{ current.isActive ? 'Deactivate' : 'Activate' }}</button></section> }
-      <section class="card stack"><h2>Catalog history</h2><p class="muted">Latest 100 catalog changes, newest first.</p>
+      <section class="card stack catalog-history-section"><div><h2>Catalog history</h2><p class="muted">Latest 100 catalog changes, newest first.</p></div>
         @if (!current.history.length) { <p>No catalog changes recorded for this existing product.</p> }
-        <ol class="catalog-history">@for (change of current.history; track change.id) { <li><strong>{{ change.action }}</strong> · {{ change.actorName }}<br /><span class="muted">{{ timestamp(change.createdAt) | date:'medium' }}</span><p>{{ change.name }} · {{ change.isActive ? 'Active' : 'Inactive' }}</p><p>Unit price: @if (change.previousUnitPrice !== null) { {{ change.previousUnitPrice | currency }} → } {{ change.unitPrice | currency }}</p></li> }</ol>
+        <ol class="catalog-history">@for (change of current.history; track change.id) { <li><div class="history-heading"><strong>{{ change.action }}</strong><span class="muted">{{ timestamp(change.createdAt) | date:'medium' }}</span></div><p>{{ change.actorName }} · {{ change.name }} · {{ change.isActive ? 'Active' : 'Inactive' }}</p><p>Unit price: @if (change.previousUnitPrice !== null) { {{ change.previousUnitPrice | currency }} → } {{ change.unitPrice | currency }}</p></li> }</ol>
       </section>
       @if (canEdit()) { <app-confirm-dialog [(open)]="confirming" [heading]="current.isActive ? 'Deactivate product?' : 'Activate product?'" [message]="current.isActive ? 'New business selections will be blocked. Existing commitments will remain valid.' : 'The product will be available for new business selections.'" [confirmLabel]="current.isActive ? 'Deactivate product' : 'Activate product'" [busy]="busy()" (confirmed)="changeStatus()" /> }
     }

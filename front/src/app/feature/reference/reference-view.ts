@@ -18,39 +18,44 @@ type Tab = 'customers' | 'products';
   selector: 'app-reference-view',
   imports: [CurrencyPipe, Avatar, Icon, Pagination, Pill, Select, MiddleText, ProductImage, RouterLink],
   template: `
-    <section class="page">
+    <section class="page reference-page">
       <header class="page-head">
         <div>
-          <h1>Reference Data</h1>
-          <p>Customers and products available for sales orders.</p>
+          <span class="eyebrow">Reference data</span>
+          <h1>{{ tab() === 'customers' ? 'Customers' : 'Products' }}</h1>
+          <p>{{ tab() === 'customers' ? 'Active customers available for sales orders.' : 'Catalog products, prices, and available stock.' }}</p>
         </div>
-        @if (administrator() && tab() === 'products') { <a class="btn btn-primary" routerLink="/reference/products/new">Add Product</a> }
+        @if (administrator() && tab() === 'products') { <a class="btn btn-primary" routerLink="/reference/products/new">Add product</a> }
       </header>
 
-      <div class="card">
-        <div class="tabs" role="tablist">
-          <button type="button" role="tab" class="tab" [attr.aria-selected]="tab() === 'customers'" (click)="setTab('customers')">
+      <div class="tabs" role="group" aria-label="Reference lists">
+          <button type="button" class="tab" [attr.aria-pressed]="tab() === 'customers'" (click)="setTab('customers')">
             Customers ({{ ref.customers().length }})
           </button>
-          <button type="button" role="tab" class="tab" [attr.aria-selected]="tab() === 'products'" (click)="setTab('products')">
+          <button type="button" class="tab" [attr.aria-pressed]="tab() === 'products'" (click)="setTab('products')">
             Products ({{ ref.products().length }})
           </button>
-        </div>
+      </div>
 
-        <div class="toolbar">
+      <div class="card reference-list">
+        <div class="list-heading">
+          <div><h2>{{ tab() === 'customers' ? 'Customer directory' : 'Product catalog' }}</h2>
+            <p class="muted">{{ tab() === 'customers' ? 'Active customers only' : 'Current catalog and stock availability' }}</p></div>
+          <span class="list-count">{{ total() }} {{ tab() }}</span>
+        </div>
+        <div class="reference-filters">
           <div class="field search">
-            <label class="sr-only" for="q">Search</label>
+            <label for="q">Search {{ tab() }}</label>
             <input
               id="q"
               type="search"
-              [placeholder]="tab() === 'customers' ? 'Search by customer name or email...' : 'Search by SKU or product name...'"
+              [placeholder]="tab() === 'customers' ? 'Name or email' : 'SKU or product name'"
               [value]="query()"
               (input)="setQuery($any($event.target).value)"
             />
           </div>
-          <label class="muted" for="size">Show</label>
-          <app-select inputId="size" [options]="sizes" [value]="'' + pageSize()" (valueChange)="setSize($event)" />
-          @if (tab() === 'products') { <app-select inputId="product-availability" ariaLabel="Product availability" [options]="availabilityOptions" [value]="availability()" (valueChange)="availability.set($event)" /> }
+          @if (tab() === 'products') { <div class="field"><label for="product-availability">Availability</label><app-select inputId="product-availability" ariaLabel="Product availability" [options]="availabilityOptions" [value]="availability()" (valueChange)="availability.set($event)" /></div> }
+          <div class="field page-size"><label for="size">Rows per page</label><app-select inputId="size" ariaLabel="Rows per page" [options]="sizes" [value]="'' + pageSize()" (valueChange)="setSize($event)" /></div>
         </div>
 
         @if (ref.failed()) {
@@ -58,7 +63,7 @@ type Tab = 'customers' | 'products';
             <app-icon name="alert" />
             <p>Could not load reference data. <button type="button" class="btn btn-ghost" (click)="ref.reload()">Retry</button></p>
           </div>
-        } @else if (ref.loading() && ref.customers().length === 0) {
+        } @else if (ref.loading()) {
           <div role="status" aria-label="Loading reference data">
             @for (n of skeleton; track n) {
               <div class="skel-row" aria-hidden="true">
@@ -67,11 +72,12 @@ type Tab = 'customers' | 'products';
             }
           </div>
         } @else if (total() === 0) {
-          <p class="empty">Nothing matches your search.</p>
+          <p class="empty">{{ query().trim() || (tab() === 'products' && availability() !== 'all') ? 'No matching ' + tab() + '.' : tab() === 'customers' ? 'No active customers available.' : 'No products in the catalog.' }}</p>
         } @else {
-          <div class="table-wrap">
+          <div class="table-wrap reference-table">
             @if (tab() === 'customers') {
               <table class="table">
+                <caption class="sr-only">Active customers</caption>
                 <thead>
                   <tr>
                     <th>Customer</th>
@@ -91,6 +97,7 @@ type Tab = 'customers' | 'products';
               </table>
             } @else {
               <table class="table">
+                <caption class="sr-only">Catalog products</caption>
                 <thead>
                   <tr>
                     <th>SKU</th>
@@ -104,13 +111,13 @@ type Tab = 'customers' | 'products';
                   @for (p of productRows(); track p.id) {
                     <tr>
                       <td class="muted" data-label="SKU"><app-middle-text [value]="p.sku" /></td>
-                      <td class="main"><span class="product-identity"><app-product-image [product]="p" (imageChanged)="ref.updateProductImage($event.id, $event.version)" /><a class="text-link" [routerLink]="['/reference/products', p.id]"><app-middle-text [value]="p.name" /></a></span></td>
+                       <td class="main"><span class="product-identity"><app-product-image [product]="p" (imageChanged)="ref.updateProductImage($event.id, $event.version)" /><a class="text-link product-name" [routerLink]="['/reference/products', p.id]" [title]="p.name">{{ p.name }}</a></span></td>
                       <td class="num" data-label="Unit price">{{ p.unitPrice | currency }}</td>
                       <td class="num" data-label="Available">
                         <app-pill [label]="'' + p.availableStock" [tone]="p.availableStock === 0 ? 'red' : 'green'" />
                       </td>
                       <td data-label="Status"><app-pill [label]="p.isActive === false ? 'Inactive' : 'Active'" [tone]="p.isActive === false ? 'gray' : 'green'" /></td>
-                      <td data-label="Actions"><a class="btn btn-ghost" [routerLink]="administrator() ? ['/reference/products', p.id, 'edit'] : ['/reference/products', p.id]">{{ administrator() ? 'Edit Product' : 'View details' }}</a></td>
+                      <td data-label="Actions"><a class="btn btn-ghost" [routerLink]="administrator() ? ['/reference/products', p.id, 'edit'] : ['/reference/products', p.id]">{{ administrator() ? 'Edit product' : 'View details' }}</a></td>
                     </tr>
                   }
                 </tbody>
@@ -118,7 +125,7 @@ type Tab = 'customers' | 'products';
             }
           </div>
           <div class="table-foot">
-            <span>Showing {{ from() }} to {{ to() }} of {{ total() }} {{ tab() }}. Only active customers are listed.</span>
+            <span>Showing {{ from() }} to {{ to() }} of {{ total() }} {{ tab() }}.</span>
             <app-pagination [(page)]="page" [pages]="pages()" />
           </div>
         }
@@ -126,8 +133,22 @@ type Tab = 'customers' | 'products';
     </section>
   `,
   styles: `
-    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    .reference-page { max-width:1440px; }
+    .reference-page .tabs { margin-bottom:0; }
+    .reference-page .tab[aria-pressed='true'] { color:var(--primary); border-bottom-color:var(--primary); }
+    .list-heading { display:flex; align-items:start; justify-content:space-between; flex-wrap:wrap; gap:8px 16px; padding-bottom:16px; border-bottom:1px solid var(--line); }
+    .list-heading h2 { margin:0; } .list-heading p { margin-top:2px; font-size:.875rem; }
+    .list-count { padding:5px 10px; border-radius:8px; background:var(--tint); color:var(--ink); font-size:.8125rem; font-weight:600; white-space:nowrap; }
+    .reference-filters { display:grid; grid-template-columns:minmax(0,1fr) minmax(160px,200px) 140px; align-items:end; gap:12px; padding:16px 0; }
+    .reference-filters:has(> .field:nth-child(2):last-child) { grid-template-columns:minmax(0,1fr) 140px; }
+    .reference-filters .field { min-width:0; } .reference-filters app-select { min-width:0; }
     .product-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .product-name { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .reference-list .table td { min-width:0; }
+    .reference-list .table td.main { font-weight:600; }
+    .reference-list .table-foot { padding-top:4px; }
+    @media(max-width:700px) { .reference-filters { grid-template-columns:repeat(2,minmax(0,1fr)); } .reference-filters:has(> .field:nth-child(2):last-child) { grid-template-columns:minmax(0,1fr) 140px; } .reference-filters .search { grid-column:1/-1; } }
+    @media(max-width:420px) { .reference-filters, .reference-filters:has(> .field:nth-child(2):last-child) { grid-template-columns:minmax(0,1fr); } .reference-filters .search { grid-column:auto; } }
   `,
 })
 export class ReferenceView {

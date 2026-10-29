@@ -18,12 +18,27 @@ import { Pill } from '../../ui/pill/pill';
   imports: [RouterLink, CurrencyPipe, DatePipe, ProductImage, ConfirmDialog, Pill],
   templateUrl: './product-form.html',
   styles: `
-    .catalog-form { max-width: 880px; }
+    .catalog-form { max-width: 1120px; }
+    .catalog-workspace { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(260px,1fr); gap:20px; align-items:start; }
+    .catalog-secondary { display:grid; gap:20px; min-width:0; }
+    .catalog-secondary p { color:var(--muted); font-size:.875rem; line-height:1.6; }
+    .catalog-secondary .btn { justify-self:start; }
+    .catalog-editor { min-width:0; }
+    .catalog-editor h2 { margin:0; }
+    .catalog-fields .product-name { grid-column:1/-1; }
+    .catalog-fields .field { min-width:0; align-content:start; }
+    .catalog-fields small { font-size:.8125rem; line-height:1.5; }
+    .editor-actions { padding-top:20px; border-top:1px solid var(--line); }
     fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
-    .catalog-history { display: grid; gap: 16px; padding: 0; list-style: none; }
-    .catalog-history li { padding-bottom: 16px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
-    .catalog-image { display: flex; gap: 16px; align-items: center; }
-    .catalog-image p { color: var(--muted); }
+    .catalog-history { display:grid; gap:0; padding:0; margin:0; list-style:none; }
+    .catalog-history li { padding:16px 0; border-bottom:1px solid var(--line); overflow-wrap:anywhere; }
+    .catalog-history li:last-child { border-bottom:0; padding-bottom:0; }
+    .catalog-history p { margin-top:4px; font-size:.875rem; }
+    .history-heading { display:flex; align-items:baseline; flex-wrap:wrap; justify-content:space-between; gap:4px 16px; }
+    .history-heading span { font-size:.8125rem; }
+    .catalog-image { display:flex; flex-wrap:wrap; gap:12px; align-items:center; }
+    @media(max-width:900px) { .catalog-workspace { grid-template-columns:minmax(0,1fr); } }
+    @media(max-width:700px) { .catalog-fields .product-name { grid-column:auto; } }
   `,
 })
 export class ProductForm {

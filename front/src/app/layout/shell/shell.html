@@ -9,7 +9,7 @@
     </div>
     <nav aria-label="Main">
       @for (group of nav(); track group.label) {
-        <details class="nav-category" [open]="categories().includes(group.label)" (toggle)="toggleCategory(group.label, $event)">
+        <details class="nav-category" name="main-categories" [open]="category() === group.label" (toggle)="toggleCategory(group.label, $event)">
           <summary>{{ group.label }}<span class="category-chevron" aria-hidden="true"></span></summary>
           <div class="category-links">
             @for (item of group.items; track item.path) {
